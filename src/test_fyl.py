@@ -1,21 +1,22 @@
 import time
 import anndata as ad
+import cProfile
 
 from os.path import join
 from si import ExclusOptimiser
 from utils import load_data
 
 
-'''
-immune data
-'''
-WORK_FOLDER = '../../data/immune'
+DATA_FOLDER = '../data'
 DATA_SET_NAME = 'immune'
-DATA_FILE = 'immune.csv'
+
+
+WORK_FOLDER = f'{DATA_FOLDER}/{DATA_SET_NAME}'
+DATA_FILE = f'{DATA_SET_NAME}.csv'
 adata = ad.read_h5ad(f'{WORK_FOLDER}/{DATA_SET_NAME}.h5ad')
 
 
-#  load data
+#  load and rearrange columns of data
 path_to_data_file = join(WORK_FOLDER, DATA_FILE)
 print("load data ... ", end='')
 df_data, df_data_scaled, lenBinary = load_data(path_to_data_file)
@@ -28,7 +29,7 @@ for EMB_NAME in adata.obsm.keys():
         tic = time.time()
         embedding = adata.obsm.get(EMB_NAME)
         optimiser = ExclusOptimiser(df_data, df_data_scaled, lenBinary, embedding,
-                                    name=DATA_SET_NAME, emb_name=EMB_NAME, work_folder = WORK_FOLDER)
+                                    name=DATA_SET_NAME, emb_name=EMB_NAME, work_folder=WORK_FOLDER)
         optimiser.optimise(runtime_id=5)
         optimiser.save_adata()
         toc = time.time()
