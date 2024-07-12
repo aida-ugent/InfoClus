@@ -28,7 +28,7 @@ for EMB_NAME in adata.obsm.keys():
     if EMB_NAME == "tSNE_5":
         tic = time.time()
         embedding = adata.obsm.get(EMB_NAME)
-        optimiser = ExclusOptimiser(df_data, df_data_scaled, lenBinary, embedding,
+        optimiser = ExclusOptimiser(df_data, df_data_scaled, lenBinary, embedding, alpha=250, beta=1.6,
                                     name=DATA_SET_NAME, emb_name=EMB_NAME, work_folder=WORK_FOLDER)
         optimiser.optimise(runtime_id=5)
         optimiser.save_adata()

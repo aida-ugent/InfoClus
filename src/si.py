@@ -4,8 +4,10 @@ import collections
 import queue
 import time
 import warnings
+import cProfile
+import pstats
 
-from queue import Queue
+from collections import deque
 from hashlib import sha256
 from os.path import join
 from caching import from_cache, to_cache
@@ -14,6 +16,7 @@ from scipy.cluster.hierarchy import to_tree
 
 
 RUNTIME_OPTIONS = [0.5, 1, 5, 10, 30, 60, 300, 600, 1800, 3600, np.inf]
+IfProfile = True
 
 
 def kl_gaussian(mean1, std1, mean2, std2, epsilon=0.00001):
@@ -350,9 +353,11 @@ class ExclusOptimiser:
         for key, sortedic in ics_dl.items():
             to_delete = best_combination[best_combination[:, 1] == key]
             to_add = np.delete(sortedic, to_delete[:, 2], 0)
-            q = Queue()
-            q.queue = queue.deque(to_add)
-            ics_dl[key] = q
+            # q = Queue()
+            # q.queue = queue.deque(to_add)
+            # ics_dl[key] = q
+            deque_object = deque(map(tuple, to_add))
+            ics_dl[key] = deque_object
 
         # Add attributes such that each cluster has one attribute at least
         # Attributes used to explain each cluster (row = cluster)
@@ -381,7 +386,7 @@ class ExclusOptimiser:
             old_value = new_value
             # Check passed so update attributes, ic, and total dl + remove chosen attribute from its queue
             if old_value != best_comb_val:
-                attr = ics_dl[dl_temp].get()
+                attr = ics_dl[dl_temp].popleft()
                 attributes_total[attr[0]].append(self._dl_indices[dl_temp][attr[1]])
                 dl += dl_temp
                 ic_attributes += ic_temp
@@ -392,7 +397,7 @@ class ExclusOptimiser:
             # Check in order of increasing dl which attribute to add
             for key, value in ics_dl.items():
                 try:
-                    test_att = value.queue[0]
+                    test_att = value[0]
                 except:
                     continue
                 ic_test = ics[test_att[0]][self._dl_indices[key][test_att[1]]]
@@ -469,6 +474,7 @@ class ExclusOptimiser:
             self.time_infor_2_icOneInfo += toc_infor_2 - tic_infor_2
             # get attributes for each cluster
             attributes, ic_attributes, dl, si_val = self.calc_optimal_attributes_dl(ics)
+
             # update the best node in this for loop
             tic_infor_3 = time.time()
             if si_val > largest_si:
@@ -527,6 +533,11 @@ class ExclusOptimiser:
         print("splitting start ... ", end='')
         while nodes and (time.time() - start < self.runtime):
             iterations += 1
+
+            if IfProfile:
+                print(f'profile choose_optimal_split in _iterate_levels')
+                pr = cProfile.Profile()
+                pr.enable()
             # get the best node to split
             nodes, clustering_new, attributes_new, si_val_new, ic_new, ic_att_new, dl_new, opt_node, clustering_new_info = self._choose_optimal_split(
                 nodes,
@@ -534,6 +545,10 @@ class ExclusOptimiser:
                 max_cluster_label=iterations - 1,
                 clusteringInfo=clustering_new_info,
                 ic_temp=ic_new)
+            if IfProfile:
+                pr.disable()
+                stats = pstats.Stats(pr)
+                stats.strip_dirs().sort_stats("cumtime").print_stats(20)
             # if the best node in this iteration is better than current record
             if si_val_new > self._si_opt:
                 if local_optimum:
@@ -787,8 +802,9 @@ class ExclusOptimiser:
             related_info_copy = copy.deepcopy(related_info)
             ic_copy = copy.deepcopy(ic)
             res = self._merge(related_info_copy, ic_copy, context)
-            if res != None:
-                attributes, ic_attributes, dl, si_val = res[0], res[1], res[2], res[3]
+            if res == None:
+                continue
+            attributes, ic_attributes, dl, si_val = res[0], res[1], res[2], res[3]
             if si_val > opt_si:
                 opt_info = related_info_copy
                 opt_ic = ic_copy
@@ -823,9 +839,17 @@ class ExclusOptimiser:
                 m_info, m_ic, m_context, m_attributes, m_ic_att, m_dl, m_si = self._choose_optimal_merge(m_info,
                                                                                                          m_ic)
             if not disable_split:
+                if IfProfile:
+                    print(f'profile choose_optimal_split in _iterate_refine')
+                    pr = cProfile.Profile()
+                    pr.enable()
                 s_nodes, s_clustering, s_attributes, s_si, s_ic, s_ic_att, s_dl, s_opt_node, s_info = self._choose_optimal_split(
                     s_nodes, clustering=s_clustering, max_cluster_label=s_max_label, clusteringInfo=s_info,
                     ic_temp=s_ic)
+                if IfProfile:
+                    pr.disable()
+                    stats = pstats.Stats(pr)
+                    stats.strip_dirs().sort_stats("cumtime").print_stats(20)
 
             if not disable_split and s_si > si_opt and s_si > m_si:
 
