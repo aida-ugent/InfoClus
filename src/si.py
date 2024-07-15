@@ -9,6 +9,7 @@ import pstats
 
 from collections import deque
 from hashlib import sha256
+from queue import Queue
 from os.path import join
 from caching import from_cache, to_cache
 from sklearn.cluster import AgglomerativeClustering
@@ -16,7 +17,7 @@ from scipy.cluster.hierarchy import to_tree
 
 
 RUNTIME_OPTIONS = [0.5, 1, 5, 10, 30, 60, 300, 600, 1800, 3600, np.inf]
-IfProfile = True
+IfProfile = False
 
 
 def kl_gaussian(mean1, std1, mean2, std2, epsilon=0.00001):
@@ -353,11 +354,12 @@ class ExclusOptimiser:
         for key, sortedic in ics_dl.items():
             to_delete = best_combination[best_combination[:, 1] == key]
             to_add = np.delete(sortedic, to_delete[:, 2], 0)
-            # q = Queue()
-            # q.queue = queue.deque(to_add)
-            # ics_dl[key] = q
-            deque_object = deque(map(tuple, to_add))
-            ics_dl[key] = deque_object
+            q = Queue()
+            q.queue = queue.deque(to_add)
+            ics_dl[key] = q
+            # deque_object = deque(map(tuple, to_add))
+            # deque_object = deque(to_add)
+            # ics_dl[key] = deque_object
 
         # Add attributes such that each cluster has one attribute at least
         # Attributes used to explain each cluster (row = cluster)
@@ -386,7 +388,8 @@ class ExclusOptimiser:
             old_value = new_value
             # Check passed so update attributes, ic, and total dl + remove chosen attribute from its queue
             if old_value != best_comb_val:
-                attr = ics_dl[dl_temp].popleft()
+                # attr = ics_dl[dl_temp].popleft()
+                attr = ics_dl[dl_temp].get()
                 attributes_total[attr[0]].append(self._dl_indices[dl_temp][attr[1]])
                 dl += dl_temp
                 ic_attributes += ic_temp
@@ -397,7 +400,8 @@ class ExclusOptimiser:
             # Check in order of increasing dl which attribute to add
             for key, value in ics_dl.items():
                 try:
-                    test_att = value[0]
+                    test_att = value.queue[0]
+                    # test_att = value[0]
                 except:
                     continue
                 ic_test = ics[test_att[0]][self._dl_indices[key][test_att[1]]]
@@ -514,13 +518,23 @@ class ExclusOptimiser:
 
     def _iterate_levels(self):
 
+        self._clustering_opt = None  # indices
+        self._split_nodes_opt = []  # splitted nodes and their classification label, tuple inside
+        self._clusterlabel_max: int = 0  # maximum label, from 0
+        self._clustersRelatedInfo = {}  # means, vars, and counts for each cluster
+        self._attributes_opt = None  # chosen attributes for each cluster
+        self._ic_opt = None  # ic of all attributes for each cluster
+        self._nodes_opt = None  # the left nodes that could be used for further splitting
+        self._si_opt = 0  # value of si for this clustering
+        self._total_dl_opt = 0  # value for summing up length of attributes
+        self._total_ic_opt = 0
+
         # nodes: possible splits (generating by combining nodes and their parents)
         nodes_idx = range(len(self._linkage_matrix) - 1)  # count from 0, without leaf points
         parents = self._parents[:-1]  # count from 0, without leaf points
         nodes = [[x, y] for x, y in zip(nodes_idx, parents)]
 
         clustering_new = None
-        self._clusterlabel_max = 0
         self._split_nodes_opt.append(("others", 0))
         clustering_new_info = {}
         clustering_new_info[0] = [self._priors[:, 0], self._priors[:, 1], len(self.data)]
@@ -590,11 +604,13 @@ class ExclusOptimiser:
     # check cache, and get results from cache if it exists
     def check_cache(self, alpha_pre_refine=0, beta_pre_refine=0):
         to_hash = f'{self.name}{self.emb_name}{self.alpha}{self.beta}{self.runtime}{alpha_pre_refine}{beta_pre_refine}'
-        hash_string = sha256(to_hash.encode('utf-8')).hexdigest()
+        # hash_string = sha256(to_hash.encode('utf-8')).hexdigest()
+        hash_string = to_hash
         previously_calculated = from_cache(join(self.cache_path, hash_string))
         if previously_calculated is not None:
             print("From cache")
             self._clustering_opt = previously_calculated["clustering"]
+            self._split_nodes_opt = previously_calculated["split"]
             self._clusterlabel_max = previously_calculated["maxlabel"]
             self._clustersRelatedInfo = previously_calculated["infor"]
             self._attributes_opt = previously_calculated["attributes"]
@@ -607,6 +623,7 @@ class ExclusOptimiser:
 
     def create_cache_version(self, hash_string):
         previously_calculated = {"clustering": self._clustering_opt,
+                                 "split": self._split_nodes_opt,
                                  "maxlabel": self._clusterlabel_max,
                                  "infor": self._clustersRelatedInfo,
                                  "attributes": self._attributes_opt,
