@@ -787,8 +787,9 @@ class ExclusOptimiser:
             related_info_copy = copy.deepcopy(related_info)
             ic_copy = copy.deepcopy(ic)
             res = self._merge(related_info_copy, ic_copy, context)
-            if res != None:
-                attributes, ic_attributes, dl, si_val = res[0], res[1], res[2], res[3]
+            if res == None:
+                continue
+            attributes, ic_attributes, dl, si_val = res[0], res[1], res[2], res[3]
             if si_val > opt_si:
                 opt_info = related_info_copy
                 opt_ic = ic_copy
