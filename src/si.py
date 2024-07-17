@@ -1041,9 +1041,9 @@ class ExclusOptimiser:
     def get_dls(self):
         return self._dls
 
-    def save_adata(self):
+    def save_adata(self, data_folder='.'):
         import anndata as ad
-        file_name = self.cache_path + '/' + self.name + '.h5ad'
+        file_name = data_folder + '/' + self.name + '.h5ad'
         adata = ad.read_h5ad(file_name)
         # save ExClus information into .h5ad file
         adata.uns['ExClus'] = {'si': self._si_opt, 'total-ic': self._total_ic_opt, 'priors': self._priors}

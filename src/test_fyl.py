@@ -32,7 +32,7 @@ for EMB_NAME in adata.obsm.keys():
         optimiser = ExclusOptimiser(df_data, df_data_scaled, lenBinary, embedding, alpha=250, beta=1.6,
                                     name=DATA_SET_NAME, emb_name=EMB_NAME, work_folder=WORK_FOLDER)
         optimiser.optimise(runtime_id=0)
-        optimiser.save_adata()
+        optimiser.save_adata(data_folder=DATA_FOLDER)
         toc = time.time()
         print(f'Time: {toc - tic} s')
 
@@ -56,13 +56,13 @@ for EMB_NAME in adata.obsm.keys():
             if run_type == 'refine':
                 tic = time.time()
                 optimiser.refine(alpha, beta, ref_runtime_id)
-                optimiser.save_adata()
+                optimiser.save_adata(data_folder=DATA_FOLDER)
                 toc = time.time()
                 print(f'Time: {toc - tic} s')
             if run_type == 'recalc':
                 tic = time.time()
                 optimiser.optimise(alpha, beta, ref_runtime_id)
-                optimiser.save_adata()
+                optimiser.save_adata(data_folder=DATA_FOLDER)
                 toc = time.time()
                 print(f'Time: {toc - tic} s')
             if_continue = input('\n continue ExClus y/n: ')
