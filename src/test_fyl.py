@@ -8,6 +8,7 @@ from utils import load_data
 
 
 DATA_SET_NAME = 'immune'
+if_visual = False
 
 DATA_FOLDER = f'C:/Users/Administrator/OneDrive - UGent/Documents/Data/ExClus/{DATA_SET_NAME}'
 WORK_FOLDER = f'../data/{DATA_SET_NAME}'
@@ -35,6 +36,17 @@ for EMB_NAME in adata.obsm.keys():
         toc = time.time()
         print(f'Time: {toc - tic} s')
 
+        if if_visual:
+            # todo 1: clustering visualization
+            clustering = optimiser._clustering_opt
+            emb = embedding
+            # todo 2: explanation visualization
+            attributes_sets = optimiser._attributes_opt
+            prioris_attributes = optimiser.get_priors()
+
+
+
+
         if_continue = input('\n continue ExClus y/n: ')
         while if_continue == 'y':
             alpha = float(input('alpha [0, 500]: '))
@@ -54,6 +66,10 @@ for EMB_NAME in adata.obsm.keys():
                 toc = time.time()
                 print(f'Time: {toc - tic} s')
             if_continue = input('\n continue ExClus y/n: ')
+
+
+
+
 
 
 

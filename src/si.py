@@ -354,12 +354,11 @@ class ExclusOptimiser:
         for key, sortedic in ics_dl.items():
             to_delete = best_combination[best_combination[:, 1] == key]
             to_add = np.delete(sortedic, to_delete[:, 2], 0)
-            q = Queue()
-            q.queue = queue.deque(to_add)
-            ics_dl[key] = q
-            # deque_object = deque(map(tuple, to_add))
-            # deque_object = deque(to_add)
-            # ics_dl[key] = deque_object
+            # q = Queue()
+            # q.queue = queue.deque(to_add)
+            # ics_dl[key] = q
+            deque_object = deque(to_add)
+            ics_dl[key] = deque_object
 
         # Add attributes such that each cluster has one attribute at least
         # Attributes used to explain each cluster (row = cluster)
@@ -388,8 +387,8 @@ class ExclusOptimiser:
             old_value = new_value
             # Check passed so update attributes, ic, and total dl + remove chosen attribute from its queue
             if old_value != best_comb_val:
-                # attr = ics_dl[dl_temp].popleft()
-                attr = ics_dl[dl_temp].get()
+                attr = ics_dl[dl_temp].popleft()
+                # attr = ics_dl[dl_temp].get()
                 attributes_total[attr[0]].append(self._dl_indices[dl_temp][attr[1]])
                 dl += dl_temp
                 ic_attributes += ic_temp
@@ -400,8 +399,8 @@ class ExclusOptimiser:
             # Check in order of increasing dl which attribute to add
             for key, value in ics_dl.items():
                 try:
-                    test_att = value.queue[0]
-                    # test_att = value[0]
+                    # test_att = value.queue[0]
+                    test_att = value[0]
                 except:
                     continue
                 ic_test = ics[test_att[0]][self._dl_indices[key][test_att[1]]]
