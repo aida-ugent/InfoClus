@@ -1,3 +1,4 @@
+import os
 import time
 import anndata as ad
 import warnings
@@ -10,8 +11,8 @@ from static_visual import painting
 
 
 # DATA_SET_NAME = 'immune'
-# DATA_SET_NAME = 'uci_adult'
-DATA_SET_NAME = 'german_socio_eco'
+DATA_SET_NAME = 'uci_adult'
+# DATA_SET_NAME = 'german_socio_eco'
 
 DATA_FOLDER = f'C:/Users/Administrator/OneDrive - UGent/Documents/Data/ExClus/{DATA_SET_NAME}'
 WORK_FOLDER = f'../data/{DATA_SET_NAME}'
@@ -38,11 +39,16 @@ for EMB_NAME in adata.obsm.keys():
         toc = time.time()
         print(f'Time: {toc - tic} s')
 
-        # IfVisual = input('\n visualization ExClus result? y/n: ')
-        IfVisual = 'n'
+        IfVisual = input('\n visualization ExClus result? y/n: ')
         if IfVisual == 'y':
             # todo: change here to be input from users, and give hint which file name can be input
-            file_to_painting = 'immunetSNE_52501.60.500'
+            directory = f'../data/{DATA_SET_NAME}'
+            all_files = os.listdir(directory)
+            print("choose a file to visual from following: ")
+            for file_index in range(len(all_files)):
+                print(f'{file_index}: {all_files[file_index]}')
+            file_index = int(input('\n which file to visualize: '))
+            file_to_painting = all_files[file_index]
             painting(f'{WORK_FOLDER}/{file_to_painting}', embedding, optimiser.get_priors(), optimiser.data, optimiser.get_dls())
 
         if_continue = input('\n continue ExClus y/n: ')

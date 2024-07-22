@@ -123,4 +123,4 @@ def painting(path_exclus_res, data_emb, data_prior, data, dls):
 
     with open("visual_distr.html", "w") as f:
         f.write(html_content)
-    print("HTML file created successfully: plotly_figures.html")
+    print("HTML file created successfully: visual_distr.html")
