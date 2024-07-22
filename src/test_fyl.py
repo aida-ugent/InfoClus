@@ -9,7 +9,9 @@ from utils import load_data
 from static_visual import painting
 
 
-DATA_SET_NAME = 'immune'
+# DATA_SET_NAME = 'immune'
+# DATA_SET_NAME = 'uci_adult'
+DATA_SET_NAME = 'german_socio_eco'
 
 DATA_FOLDER = f'C:/Users/Administrator/OneDrive - UGent/Documents/Data/ExClus/{DATA_SET_NAME}'
 WORK_FOLDER = f'../data/{DATA_SET_NAME}'
@@ -37,13 +39,13 @@ for EMB_NAME in adata.obsm.keys():
         print(f'Time: {toc - tic} s')
 
         # IfVisual = input('\n visualization ExClus result? y/n: ')
-        IfVisual = 'y'
+        IfVisual = 'n'
         if IfVisual == 'y':
+            # todo: change here to be input from users, and give hint which file name can be input
             file_to_painting = 'immunetSNE_52501.60.500'
             painting(f'{WORK_FOLDER}/{file_to_painting}', embedding, optimiser.get_priors(), optimiser.data, optimiser.get_dls())
 
-        # if_continue = input('\n continue ExClus y/n: ')
-        if_continue = 'n'
+        if_continue = input('\n continue ExClus y/n: ')
         while if_continue == 'y':
             alpha = float(input('alpha [0, 500]: '))
             beta = float(input('beta [0,2]: '))
