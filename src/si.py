@@ -223,7 +223,7 @@ class ExclusOptimiser:
 
         a = np.ones(self._binaryTargetsLen, dtype=int)
         b = np.ones(self._targetsLen - self._binaryTargetsLen, dtype=int) + np.ones(
-            self._targetsLen - self._binaryTargetsLen, dtype=int)
+                    self._targetsLen - self._binaryTargetsLen, dtype=int)
         self._dls = np.append(a, b)
 
         # Order attribute indices per dl to use later in dl optimisation
@@ -1045,11 +1045,12 @@ class ExclusOptimiser:
         import anndata as ad
         file_name = data_folder + '/' + self.name + '.h5ad'
         adata = ad.read_h5ad(file_name)
+        column_names = self.data.columns
         # save ExClus information into .h5ad file
         adata.uns['ExClus'] = {'si': self._si_opt, 'total-ic': self._total_ic_opt, 'priors': self._priors}
         for cluster in range(self._clusterlabel_max + 1):
             adata.uns['ExClus'][f'cluster {cluster}'] = {}
-            adata.uns['ExClus'][f'cluster {cluster}']['attributes'] = self._attributes_opt[cluster]
+            adata.uns['ExClus'][f'cluster {cluster}']['attributes'] = [column_names[attr] for attr in self._attributes_opt[cluster]]
             adata.uns['ExClus'][f'cluster {cluster}']['ic'] = self._ic_opt[cluster]
         adata.obs['exclus-clustering'] = self._clustering_opt
         adata.write(file_name)

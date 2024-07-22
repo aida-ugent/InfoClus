@@ -1,14 +1,15 @@
 import time
 import anndata as ad
-import cProfile
+import warnings
+warnings.filterwarnings("ignore")
 
 from os.path import join
 from si import ExclusOptimiser
 from utils import load_data
+from static_visual import painting
 
 
 DATA_SET_NAME = 'immune'
-if_visual = False
 
 DATA_FOLDER = f'C:/Users/Administrator/OneDrive - UGent/Documents/Data/ExClus/{DATA_SET_NAME}'
 WORK_FOLDER = f'../data/{DATA_SET_NAME}'
@@ -16,14 +17,13 @@ WORK_FOLDER = f'../data/{DATA_SET_NAME}'
 DATA_FILE = f'{DATA_SET_NAME}.csv'
 adata = ad.read_h5ad(f'{DATA_FOLDER}/{DATA_SET_NAME}.h5ad')
 
-
 #  load and rearrange columns of data
 path_to_data_file = join(DATA_FOLDER, DATA_FILE)
 print("load data ... ", end='')
 df_data, df_data_scaled, lenBinary = load_data(path_to_data_file)
 print("done")
 
-# for each embedding, store si-clustering and si-explanation
+
 for EMB_NAME in adata.obsm.keys():
 
     if EMB_NAME == "tSNE_5":
@@ -36,18 +36,14 @@ for EMB_NAME in adata.obsm.keys():
         toc = time.time()
         print(f'Time: {toc - tic} s')
 
-        if if_visual:
-            # todo 1: clustering visualization
-            clustering = optimiser._clustering_opt
-            emb = embedding
-            # todo 2: explanation visualization
-            attributes_sets = optimiser._attributes_opt
-            prioris_attributes = optimiser.get_priors()
+        # IfVisual = input('\n visualization ExClus result? y/n: ')
+        IfVisual = 'y'
+        if IfVisual == 'y':
+            file_to_painting = 'immunetSNE_52501.60.500'
+            painting(f'{WORK_FOLDER}/{file_to_painting}', embedding, optimiser.get_priors(), optimiser.data, optimiser.get_dls())
 
-
-
-
-        if_continue = input('\n continue ExClus y/n: ')
+        # if_continue = input('\n continue ExClus y/n: ')
+        if_continue = 'n'
         while if_continue == 'y':
             alpha = float(input('alpha [0, 500]: '))
             beta = float(input('beta [0,2]: '))
