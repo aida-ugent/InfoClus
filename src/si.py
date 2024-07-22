@@ -17,7 +17,7 @@ from scipy.cluster.hierarchy import to_tree
 
 
 RUNTIME_OPTIONS = [0.5, 1, 5, 10, 30, 60, 300, 600, 1800, 3600, np.inf]
-IfProfile = True
+IfProfile = False
 
 IfDeque = False
 IfList = True
@@ -557,7 +557,6 @@ class ExclusOptimiser:
         print("splitting start ... ", end='')
         while nodes and (time.time() - start < self.runtime):
             iterations += 1
-
             if IfProfile:
                 print(f'profile choose_optimal_split in _iterate_levels')
                 pr = cProfile.Profile()
@@ -594,17 +593,6 @@ class ExclusOptimiser:
                 self._nodes_opt = copy.deepcopy(nodes)
             else:
                 local_optimum = True
-        '''
-        print("Iterations", iterations)
-        print("Clusters: ", len(set(self._clustering_opt)))
-        clusters = list(range(self._clusterlabel_max + 1))
-        sum_p = 0
-        for i in clusters:
-            print(f"     cluster {i}: {sum(self._clustering_opt == i)} points")
-            sum_p += sum(self._clustering_opt == i)
-        print(f'points clustered: {sum_p}; total points: {self.data.shape[0]}')
-        print("SI: ", self._si_opt)
-        '''
         print("done")
         print("refine start ... ", end='')
         iterations_refine = self._iterate_refine()
@@ -675,25 +663,7 @@ class ExclusOptimiser:
                 print(f'{column_names[j]} ', end='')
             print("")
         print("SI: ", self._si_opt)
-        '''
-        # print results on console
-        print(f"time 1 - choose optimal split {self.TIME1_chooseOptimalSplit} s "
-              f"\n in which, nodes enumeration takes {self.time_nodesEnumeration} s, removing nodes takes {self.time_removingNodes} s")
-        print("")
-        print(f" time spendind in enumeration of nodes (For Loop):"
-              f"\n part 1: {self.time_infor_1} "
-              f"\n part 2: {self.time_infor_2_icOneInfo} s, which should corresponds to time 1-4: ic computation. "
-              f"\n part 2-append: {self.time_infor_2_append} s, time appending, including ic computation"
-              f"\n part 2-copy: {self.time_infor_2_deepcopy} s, time copy"
-              f"\n part 3: {self.time_infor_3}")
 
-        print(f"\n time 1-1 - calc optimal attributes dl {self.TIME1_1_calcOptimalAttributesDl} s")
-        print(f"        time 1-1-1 - init optimal attributes dl {self.TIME1_1_1_initOptimalAttributesDl} s")
-
-        print(f"time 1-4 - ic one Info {self.TIME1_4_icOneInfo} s, call {self.count1_4} times")
-
-        print("")
-        '''
         return self._clustering_opt, self._attributes_opt, self._si_opt
 
     def shift_key(self, dict, old_key, new_key):
@@ -924,7 +894,7 @@ class ExclusOptimiser:
 
             self._si_opt = si_opt
 
-            return iteration_refine
+        return iteration_refine
 
     def merge_update(self, context):
 
