@@ -5,10 +5,9 @@ import numpy as np
 import scipy.stats as ss
 import re
 import plotly.io as pio
+import os
 
 from caching import from_cache
-from PyPDF2 import PdfMerger
-from matplotlib.backends.backend_pdf import PdfPages
 
 
 '''
@@ -68,33 +67,37 @@ def config_explanation(df_data, labels, attributes, priors, dls, ics, max_cluste
                 label0 = re.findall(r"(?<=::)(.*?)(?=\))", column_name)[0]
                 prior1 = priors[attribute][0] * 100
                 cluster1 = means.iloc[attribute] * 100
-                plot_data = {'group': ["cluster"] * 2 + ["all data"] * 2,
+                plot_data = {column_names[attribute]: ["cluster"] * 2 + ["all data"] * 2,
                              "distribution": [100 - cluster1, cluster1, 100 - prior1, prior1],
                              "label": [label0, label1] * 2}
                 df_explanation = pd.DataFrame(plot_data)
 
-                fig = px.bar(df_explanation, x='group', y='distribution', color='label',
+                fig = px.bar(df_explanation, x=column_names[attribute], y='distribution', color='label',
                              title=f'cluster {cluster} - attribute {attribute}', width=400, height=300)
             figures.append(fig)
 
     return figures
 
-def painting(path_exclus_res, data_emb, data_prior, data, dls):
+def painting(data_name, work_folder, file_to_painting, data):
+
+    path_exclus_res = f'{work_folder}/{file_to_painting}'
     exclus_info = from_cache(path_exclus_res)
+
+    data_prior = exclus_info["prior"]
+    dls = exclus_info['dls']
+    res_in_brief = exclus_info['res_in_brief']
     clustering = exclus_info["clustering"]
     attributes = exclus_info['attributes']
     ics = exclus_info['ic']
     max_cluster = exclus_info['maxlabel']
+
     # figure_clustering = config_clustering(data_emb, clustering)
     figures_explanation = config_explanation(data, clustering, attributes, data_prior, dls, ics, max_cluster)
-
-
-    config_explanation(data, clustering, attributes, data_prior, dls, ics, max_cluster)
+    # config_explanation(data, clustering, attributes, data_prior, dls, ics, max_cluster)
     html_figs = []
     # html_figs.append(pio.to_html(figure_clustering, full_html=False))
     for figures_explanation in figures_explanation:
         html_figs.append(pio.to_html(figures_explanation, full_html=False))
-
     html_template = """
     <!DOCTYPE html>
     <html>
@@ -113,14 +116,30 @@ def painting(path_exclus_res, data_emb, data_prior, data, dls):
         </style>
     </head>
     <body>
-        {}
+        {res_in_brief}
+        {plots}
     </body>
     </html>
     """
 
-    # 将图表字符串插入到 HTML 模板中
-    html_content = html_template.format("".join(f'<div class="plotly-figure">{fig}</div>' for fig in html_figs))
+    res_in_brief = res_in_brief
+    plots = "".join(f'<div class="plotly-figure">{fig}</div>' for fig in html_figs)
 
-    with open("visual_distr.html", "w") as f:
+    # 将图表字符串插入到 HTML 模板中
+    html_content = html_template.format(res_in_brief=res_in_brief, plots=plots)
+
+    # Define the directory and file name
+    directory = f"../data/{data_name}"  # 替换为你想要保存的目录路径
+    file_name = f'{file_to_painting}.html'
+
+    # Ensure the directory exists
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    # Create the full path
+    file_path = os.path.join(directory, file_name)
+
+    with open(file_path, "w") as f:
         f.write(html_content)
-    print("HTML file created successfully: visual_distr.html")
+
+    print(f"HTML file created successfully: {file_to_painting}.html")

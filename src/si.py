@@ -16,12 +16,12 @@ from sklearn.cluster import AgglomerativeClustering
 from scipy.cluster.hierarchy import to_tree
 
 
-RUNTIME_OPTIONS = [0.5, 1, 5, 10, 30, 60, 300, 600, 1800, 3600, np.inf]
+RUNTIME_OPTIONS = [0.01, 0.5, 1, 5, 10, 30, 60, 300, 600, 1800, 3600, np.inf]
 IfProfile = False
 
 IfDeque = False
 IfList = True
-
+IfScaled = True
 
 def kl_gaussian(mean1, std1, mean2, std2, epsilon=0.00001):
     std1 += epsilon
@@ -107,6 +107,7 @@ class ExclusOptimiser:
         self._si_opt = 0  # value of si for this clustering
         self._total_dl_opt = 0  # value for summing up length of attributes
         self._total_ic_opt = 0  # value for summing up all ic used
+        self._res_in_brief = '' # string variable to record clustering result in brief
 
         # time related variables
         self.TIME1_chooseOptimalSplit = 0
@@ -170,7 +171,10 @@ class ExclusOptimiser:
             # compute count, mean, vars, parent
             if left_child < n_samples:
                 current_count_left += 1
-                m_left = self.data.iloc[left_child].to_numpy()
+                if IfScaled:
+                    m_left = self.data_scaled.iloc[left_child].to_numpy()
+                else:
+                    m_left = self.data.iloc[left_child].to_numpy()
                 var_left = np.zeros_like(m_left)
                 leafPoints.append(left_child)
             else:
@@ -185,7 +189,10 @@ class ExclusOptimiser:
             # count, mean, vars, parent
             if right_child < n_samples:
                 current_count_right += 1
-                m_right = self.data.iloc[right_child].to_numpy()
+                if IfScaled:
+                    m_right = self.data_scaled.iloc[right_child].to_numpy()
+                else:
+                    m_right = self.data.iloc[right_child].to_numpy()
                 var_right = np.zeros_like(m_right)
                 leafPoints.append(right_child)
             else:
@@ -598,10 +605,24 @@ class ExclusOptimiser:
         iterations_refine = self._iterate_refine()
         print("done")
         print(f'Iterations {iterations} + {iterations_refine}')
+        end_time = time.time()
+        self._res_in_brief = f'''
+        -------------------- ExClus - Dataset: {self.name} Emb: {self.emb_name} Alpha: {int(self.alpha)} Beta: {self.beta} Ref. Runtime: {self.runtime}
+        Total Clusters: {int(self._clusterlabel_max+1)}     
+        '''
+        for cluster in range(self._clusterlabel_max+1):
+            str = f'''
+            cluster {cluster}: {sum(self._clustering_opt == cluster)} points
+            '''
+            self._res_in_brief = self._res_in_brief + "\n" + str
+        self._res_in_brief += f'''
+        SI:  {self._si_opt}
+        Time: {end_time - start}
+        '''
 
     # check cache, and get results from cache if it exists
     def check_cache(self, alpha_pre_refine=0, beta_pre_refine=0):
-        to_hash = f'{self.name}{self.emb_name}{self.alpha}{self.beta}{self.runtime}{alpha_pre_refine}{beta_pre_refine}'
+        to_hash = f'{self.name}{self.emb_name}{int(self.alpha)}{self.beta}{int(self.runtime)}{int(alpha_pre_refine)}{beta_pre_refine}'
         # hash_string = sha256(to_hash.encode('utf-8')).hexdigest()
         hash_string = to_hash
         previously_calculated = from_cache(join(self.cache_path, hash_string))
@@ -612,11 +633,14 @@ class ExclusOptimiser:
             self._clusterlabel_max = previously_calculated["maxlabel"]
             self._clustersRelatedInfo = previously_calculated["infor"]
             self._attributes_opt = previously_calculated["attributes"]
+            self._priors = previously_calculated["prior"]
             self._si_opt = previously_calculated["si"]
             self._ic_opt = previously_calculated["ic"]
+            self._dls = previously_calculated["dls"]
             self._nodes_opt = previously_calculated["nodes"]
             self._total_dl_opt = previously_calculated["total_dl"]
             self._total_ic_opt = previously_calculated["total_ic"]
+            self._res_in_brief = previously_calculated["res_in_brief"]
         return hash_string, previously_calculated
 
     def create_cache_version(self, hash_string):
@@ -625,11 +649,14 @@ class ExclusOptimiser:
                                  "maxlabel": self._clusterlabel_max,
                                  "infor": self._clustersRelatedInfo,
                                  "attributes": self._attributes_opt,
+                                 "prior": self._priors,
                                  "si": self._si_opt,
                                  "ic": self._ic_opt,
+                                 "dls": self._dls,
                                  "nodes": self._nodes_opt,
                                  "total_dl": self._total_dl_opt,
-                                 "total_ic": self._total_ic_opt
+                                 "total_ic": self._total_ic_opt,
+                                 "res_in_brief": self._res_in_brief
                                  }
         to_cache(join(self.cache_path, hash_string), previously_calculated)
 
@@ -649,11 +676,12 @@ class ExclusOptimiser:
         # start clustering when no cache
         if previously_calculated is None:
             self._si_opt = 0
+            self._res_in_brief = ''
             self._iterate_levels()
             self.create_cache_version(hash_string)
 
-        print(f'-------------------- ExClus - Dataset: {self.name} Emb: {self.emb_name} Alpha: {self.alpha} Beta: {self.beta} Ref. Runtime: {self.runtime}')
-        print("Clusters: ", len(set(self._clustering_opt)))
+        print(f'-------------------- ExClus - Dataset: {self.name} Emb: {self.emb_name} Alpha: {self.alpha} Beta: {self.beta} Ref. Runtime: {self.runtime}\n')
+        print(f'Clusters: {len(set(self._clustering_opt))}\n')
         clusters = list(range(self._clusterlabel_max + 1))
         column_names = self.data.columns
         for i in clusters:
@@ -709,7 +737,11 @@ class ExclusOptimiser:
 
         # changing: related info, ic
         info_others_old = related_info[0]
-        info_others_change = [self.data.iloc[other_points].mean(), self.data.iloc[other_points].var(),
+        if IfScaled:
+            info_others_change = [self.data_scaled.iloc[other_points].mean(), self.data_scaled.iloc[other_points].var(),
+                                  len(other_points)]
+        else:
+            info_others_change = [self.data.iloc[other_points].mean(), self.data.iloc[other_points].var(),
                               len(other_points)]
         info_others_new = self.recur_meanVar_remove(info_others_old[0], info_others_old[1], info_others_old[2],
                                                     info_others_change[0], info_others_change[1], info_others_change[2])
@@ -893,6 +925,20 @@ class ExclusOptimiser:
                 break
 
             self._si_opt = si_opt
+        end_time = time.time()
+        self._res_in_brief = f'''
+        -------------------- ExClus - Dataset: {self.name} Emb: {self.emb_name} Alpha: {int(self.alpha)} Beta: {self.beta} Ref. Runtime: {self.runtime}
+        Total Clusters: {int(self._clusterlabel_max+1)}     
+        '''
+        for cluster in range(self._clusterlabel_max+1):
+            str = f'''
+            cluster {cluster}: {sum(self._clustering_opt == cluster)}
+            '''
+            self._res_in_brief = self._res_in_brief + "\n" + str
+        self._res_in_brief += f'''
+        SI:  {self._si_opt}
+        Time: {end_time - start}
+        '''
 
         return iteration_refine
 
@@ -980,6 +1026,7 @@ class ExclusOptimiser:
                                                               beta_pre_refine=beta_pre_refine)
         if previously_calculated is None:
             print("refine start ... ", end='')
+            self._res_in_brief = ''
             self._iterate_refine()
             print("done")
             self.create_cache_version(hash_string)
@@ -1017,6 +1064,7 @@ class ExclusOptimiser:
         adata = ad.read_h5ad(file_name)
         column_names = self.data.columns
         # save ExClus information into .h5ad file
+        adata.uns['ExClus'] = {}
         adata.uns['ExClus'] = {'si': self._si_opt, 'total-ic': self._total_ic_opt, 'priors': self._priors}
         for cluster in range(self._clusterlabel_max + 1):
             adata.uns['ExClus'][f'cluster {cluster}'] = {}
