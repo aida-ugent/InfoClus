@@ -28,14 +28,14 @@ def config_clustering(embedding, labels):
     # figure.write_html('first_figure.html', auto_open=True)
 '''
 
-def config_explanation(df_data, labels, attributes, priors, dls, ics, max_cluster):
+def config_explanation(data, labels, attributes, priors, dls, ics, max_cluster):
 
     figures = []
 
     for cluster in range(max_cluster+1):
 
-        cluster_data = df_data.iloc[np.nonzero(labels == cluster)[0], :]
-        column_names = df_data.columns
+        cluster_data = data.iloc[np.nonzero(labels == cluster)[0], :]
+        column_names = data.columns
         means = cluster_data.mean()
         stds = cluster_data.std()
 

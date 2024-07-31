@@ -9,8 +9,8 @@ from si import ExclusOptimiser
 from utils import load_data
 from static_visual import painting
 
-DATA_SET_NAME = 'immune'
-# DATA_SET_NAME = 'uci_adult'
+# DATA_SET_NAME = 'immune'
+DATA_SET_NAME = 'uci_adult'
 # DATA_SET_NAME = 'german_socio_eco'
 
 DATA_FOLDER = f'C:/Users/Administrator/OneDrive - UGent/Documents/Data/ExClus/{DATA_SET_NAME}'
@@ -29,7 +29,7 @@ alpha = 250
 beta = 1.5
 
 for EMB_NAME in adata.obsm.keys():
-    if EMB_NAME == "tSNE_5":
+    if EMB_NAME == "tSNE_3":
         tic = time.time()
         embedding = adata.obsm.get(EMB_NAME)
         optimiser = ExclusOptimiser(df_data, df_data_scaled, lenBinary, embedding, alpha=alpha, beta=beta,
@@ -69,7 +69,7 @@ for EMB_NAME in adata.obsm.keys():
                 print(f'{file_index}: {all_files[file_index]}')
             file_index = int(input('\n which file to visualize: '))
             file_to_painting = all_files[file_index]
-            painting(DATA_SET_NAME, WORK_FOLDER, file_to_painting, df_data)
+            painting(DATA_SET_NAME, WORK_FOLDER, file_to_painting, df_data_scaled)
             IfVisual = input('\n visualization ExClus result? y/n: ')
 
 
