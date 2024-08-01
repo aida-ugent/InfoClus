@@ -11,6 +11,9 @@ from collections import deque
 from hashlib import sha256
 from queue import Queue
 from os.path import join
+
+import pandas as pd
+
 from caching import from_cache, to_cache
 from sklearn.cluster import AgglomerativeClustering
 from scipy.cluster.hierarchy import to_tree
@@ -22,6 +25,9 @@ IfProfile = False
 IfDeque = False
 IfList = True
 IfScaled = True
+IfLimitAtt = True
+linkages = ['ward', 'complete', 'average', 'single']
+linkage = linkages[1]
 
 def kl_gaussian(mean1, std1, mean2, std2, epsilon=0.00001):
     std1 += epsilon
@@ -70,8 +76,8 @@ class ExclusOptimiser:
     def __init__(self,
                  df, df_scaled,
                  lenBinary, embedding, name=None, emb_name="tSNE",
-                 model=AgglomerativeClustering(linkage="single", distance_threshold=0, n_clusters=None),
-                 alpha=250, beta=1.6, runtime_id=0, work_folder="."
+                 model=AgglomerativeClustering(linkage=linkage, distance_threshold=0, n_clusters=None),
+                 alpha=250, beta=1.6, min_att=3, max_att=10, runtime_id=0, work_folder="."
                  ):
         self.name = name
         self.emb_name = emb_name
@@ -82,6 +88,8 @@ class ExclusOptimiser:
         self.model = model
         self.alpha = alpha
         self.beta = beta
+        self.min_att = min_att
+        self.max_att = max_att
         self.runtime = RUNTIME_OPTIONS[runtime_id]
         self._targetsLen = len(self.data.columns)
         self.cache_path = work_folder
@@ -293,87 +301,115 @@ class ExclusOptimiser:
     # get the best attribute for each cluster
     def _init_optimal_attributes_dl(self, ics):
         tic = time.time()
-        # Which type of dl exist
-        unique_dls = sorted(set(self._dls))
-        min_dl = unique_dls[0]
 
-        # Each element is matrix where per row first element is cluster, second element is index to use in dl_indices
-        # Order by increasing IC in a queue
-        # Used to decide which attribute should be tried next
-        # Will first be used to ensure each cluster has at least one attribute
-        ics_dl = collections.OrderedDict()
-
-        # Which attributes should be considered to be the first in each cluster
-        # Ensure each cluster has at least one
-        to_check_first = np.zeros((len(ics), len(unique_dls), 3), dtype=np.int16)
-
-        # Fill dl_indices and ics_dl
-        double_test = []
-        for val in unique_dls:
-            # Attribute indices for dl (val)
-            indices = self._dl_indices[val]
-            # Only ics for indices are used
-            icssub = ics[:, indices]
-            # Sort the submatrix according to ic index, this wil be put into ics_dl later as a queue
-            sortedic = np.dstack(np.unravel_index(np.argsort(-icssub.ravel()), icssub.shape))[0]
-            ics_dl[val] = sortedic
-
-            # Find all attributes that should be considered to check as a first attribute for each cluster
+        if IfLimitAtt:
+            sortedic = np.dstack(np.unravel_index(np.argsort(-ics.ravel()), ics.shape))[0]
             find_index = sortedic[:, 0]
+            attributes_total = []
+            ic_attributes = 0
+            dl = 0
             for i in range(len(ics)):
-                index = np.where(find_index == i)[0][0]
-                attribute = indices[sortedic[index][1]]
-                if val == unique_dls[0]:
-                    to_check_first[i][val - min_dl] = np.array([attribute, val, index])
-                elif ics[i][to_check_first[i][val - min_dl - 1][0]] < ics[i][attribute]:
-                    double_test.append(
-                        [val, i, ics[i][to_check_first[i][val - min_dl - 1][0]], to_check_first[i][val - min_dl - 1][1],
-                         ics[i][attribute]])
-                    to_check_first[i][val - min_dl] = np.array([attribute, val, index])
+                index = np.where(find_index == i)[0][0:self.min_att]
+                attributes = [sortedic[ind][1] for ind in index]
+                attributes_total.append(attributes)
+                ic_attributes += sum(ics[i, attributes])
+                dl = dl + sum(1 if attribute<self._binaryTargetsLen else 2 for attribute in attributes)
+                sortedic = np.delete(sortedic, index, axis=0)
+                find_index = np.delete(find_index, index, axis=0)
+                #todo: return ics_dl
+            best_comb_val = ic_attributes / (self.alpha + dl ** self.beta)
+            ics_dl = collections.OrderedDict()
+            ics_dl[1], ics_dl[2] = [], []
+            for sort in sortedic:
+                cluster = sort[0]
+                att = sort[1]
+                if att < self._binaryTargetsLen:
+                    ics_dl[1].append(sort)
+                else:
+                    new_sort = [cluster, att-self._binaryTargetsLen]
+                    ics_dl[2].append(new_sort)
+        else:
+            # Which type of dl exist
+            unique_dls = sorted(set(self._dls))
+            min_dl = unique_dls[0]
 
-        double_test.sort(key=lambda x: x[4], reverse=True)
-        best_combination = to_check_first[:, 0]
-        # Total IC only including attributes used for explanation
-        ic_attributes = sum(ics[np.arange(len(ics)), best_combination[:, 0]])
-        # Total DL for clustering
-        dl = sum(best_combination[:, 1])
-        best_comb_val = ic_attributes / (self.alpha + dl ** self.beta)
+            # Each element is matrix where per row first element is cluster, second element is index to use in dl_indices
+            # Order by increasing IC in a queue
+            # Used to decide which attribute should be tried next
+            # Will first be used to ensure each cluster has at least one attribute
+            ics_dl = collections.OrderedDict()
 
-        iterate = True
-        while iterate:
-            iterate = False
-            delete = []
-            for i, row in enumerate(double_test):
-                dl_attribute = row[0]
-                attribute = to_check_first[row[1], dl_attribute - min_dl]
-                ic_test = ic_attributes + row[4] - row[2]
-                dl_test = dl + dl_attribute - row[3]
-                val_test = ic_test / (self.alpha + dl_test ** self.beta)
-                if val_test > best_comb_val:
-                    ic_attributes = ic_test
-                    dl = dl_test
-                    best_comb_val = val_test
-                    best_combination[row[1]] = attribute
-                    delete.append(i)
-                    iterate = True
-            for i in sorted(delete, reverse=True):
-                del double_test[i]
+            # Which attributes should be considered to be the first in each cluster
+            # Ensure each cluster has at least one
+            to_check_first = np.zeros((len(ics), len(unique_dls), 3), dtype=np.int16)
 
-        # Remove all attributes that have already been added
-        # Put remaining ones in queues for ea
-        for key, sortedic in ics_dl.items():
-            to_delete = best_combination[best_combination[:, 1] == key]
-            to_add = np.delete(sortedic, to_delete[:, 2], 0)
-            if IfDeque:
-                deque_object = deque(to_add)
-                ics_dl[key] = deque_object
-            if IfList:
-                list_object = to_add.tolist()
-                ics_dl[key] = list_object
+            # Fill dl_indices and ics_dl
+            double_test = []
+            for val in unique_dls:
+                # Attribute indices for dl (val)
+                indices = self._dl_indices[val]
+                # Only ics for indices are used
+                icssub = ics[:, indices]
+                # Sort the submatrix according to ic index, this wil be put into ics_dl later as a queue
+                sortedic = np.dstack(np.unravel_index(np.argsort(-icssub.ravel()), icssub.shape))[0]
+                ics_dl[val] = sortedic
 
-        # Add attributes such that each cluster has one attribute at least
-        # Attributes used to explain each cluster (row = cluster)
-        attributes_total = [[value[0]] for value in best_combination]
+                # Find all attributes that should be considered to check as a first attribute for each cluster
+                find_index = sortedic[:, 0]
+                for i in range(len(ics)):
+                    index = np.where(find_index == i)[0][0]
+                    attribute = indices[sortedic[index][1]]
+                    if val == unique_dls[0]:
+                        to_check_first[i][val - min_dl] = np.array([attribute, val, index])
+                    elif ics[i][to_check_first[i][val - min_dl - 1][0]] < ics[i][attribute]:
+                        double_test.append(
+                            [val, i, ics[i][to_check_first[i][val - min_dl - 1][0]], to_check_first[i][val - min_dl - 1][1],
+                             ics[i][attribute]])
+                        to_check_first[i][val - min_dl] = np.array([attribute, val, index])
+
+            double_test.sort(key=lambda x: x[4], reverse=True)
+            best_combination = to_check_first[:, 0]
+            # Total IC only including attributes used for explanation
+            ic_attributes = sum(ics[np.arange(len(ics)), best_combination[:, 0]])
+            # Total DL for clustering
+            dl = sum(best_combination[:, 1])
+            best_comb_val = ic_attributes / (self.alpha + dl ** self.beta)
+
+            iterate = True
+            while iterate:
+                iterate = False
+                delete = []
+                for i, row in enumerate(double_test):
+                    dl_attribute = row[0]
+                    attribute = to_check_first[row[1], dl_attribute - min_dl]
+                    ic_test = ic_attributes + row[4] - row[2]
+                    dl_test = dl + dl_attribute - row[3]
+                    val_test = ic_test / (self.alpha + dl_test ** self.beta)
+                    if val_test > best_comb_val:
+                        ic_attributes = ic_test
+                        dl = dl_test
+                        best_comb_val = val_test
+                        best_combination[row[1]] = attribute
+                        delete.append(i)
+                        iterate = True
+                for i in sorted(delete, reverse=True):
+                    del double_test[i]
+
+            # Remove all attributes that have already been added
+            # Put remaining ones in queues for ea
+            for key, sortedic in ics_dl.items():
+                to_delete = best_combination[best_combination[:, 1] == key]
+                to_add = np.delete(sortedic, to_delete[:, 2], 0)
+                if IfDeque:
+                    deque_object = deque(to_add)
+                    ics_dl[key] = deque_object
+                if IfList:
+                    list_object = to_add.tolist()
+                    ics_dl[key] = list_object
+
+            # Add attributes such that each cluster has one attribute at least
+            # Attributes used to explain each cluster (row = cluster)
+            attributes_total = [[value[0]] for value in best_combination]
 
         toc = time.time()
         self.TIME1_1_1_initOptimalAttributesDl += toc - tic
@@ -607,7 +643,7 @@ class ExclusOptimiser:
         print(f'Iterations {iterations} + {iterations_refine}')
         end_time = time.time()
         self._res_in_brief = f'''
-        -------------------- ExClus - Dataset: {self.name} Emb: {self.emb_name} Alpha: {int(self.alpha)} Beta: {self.beta} Ref. Runtime: {self.runtime}
+        -------------------- ExClus - Dataset: {self.name} Emb: {self.emb_name} Linkage: {linkage} min_Attr: {self.min_att} Alpha: {int(self.alpha)} Beta: {self.beta} Ref. Runtime: {self.runtime}
         Total Clusters: {int(self._clusterlabel_max+1)}     
         '''
         for cluster in range(self._clusterlabel_max+1):
@@ -622,7 +658,7 @@ class ExclusOptimiser:
 
     # check cache, and get results from cache if it exists
     def check_cache(self, alpha_pre_refine=0, beta_pre_refine=0):
-        to_hash = f'{self.name}{self.emb_name}{int(self.alpha)}{self.beta}{int(self.runtime)}{int(alpha_pre_refine)}{beta_pre_refine}'
+        to_hash = f'{self.name}-{self.emb_name}-{linkage}-{int(self.alpha)}-{self.beta}-{self.min_att}-{int(self.runtime)}-{int(alpha_pre_refine)}-{beta_pre_refine}'
         # hash_string = sha256(to_hash.encode('utf-8')).hexdigest()
         hash_string = to_hash
         previously_calculated = from_cache(join(self.cache_path, hash_string))
@@ -817,7 +853,10 @@ class ExclusOptimiser:
                 if ace_node == None:
                     continue
                 ace_points = self._nodesToPoints[ace_node]
-                ace_points_indices = self._clustering_opt[ace_points]
+                try:
+                    ace_points_indices = [self._clustering_opt[i] for i in ace_points]
+                except:
+                    print("error, ace_points_indices = self._clustering_opt[ace_points], TypeError: list indices must be integers or slices, not list")
                 ace_points_labels = set(ace_points_indices)
                 if len(ace_points_labels) == 3 and label_i in ace_points_labels and label_j in ace_points_labels:
                     if 0 in ace_points_labels:
@@ -926,8 +965,9 @@ class ExclusOptimiser:
 
             self._si_opt = si_opt
         end_time = time.time()
+        self._clustering_opt = np.array(self._clustering_opt)
         self._res_in_brief = f'''
-        -------------------- ExClus - Dataset: {self.name} Emb: {self.emb_name} Alpha: {int(self.alpha)} Beta: {self.beta} Ref. Runtime: {self.runtime}
+        -------------------- ExClus - Dataset: {self.name} Emb: {self.emb_name}  Linkage: {linkage} min_Attr: {self.min_att} Alpha: {int(self.alpha)} Beta: {self.beta} Ref. Runtime: {self.runtime}
         Total Clusters: {int(self._clusterlabel_max+1)}     
         '''
         for cluster in range(self._clusterlabel_max+1):
@@ -939,7 +979,6 @@ class ExclusOptimiser:
         SI:  {self._si_opt}
         Time: {end_time - start}
         '''
-
         return iteration_refine
 
     def merge_update(self, context):
@@ -1062,10 +1101,14 @@ class ExclusOptimiser:
         import anndata as ad
         file_name = data_folder + '/' + self.name + '.h5ad'
         adata = ad.read_h5ad(file_name)
-        column_names = self.data.columns
+        column_names = self.data.columns.tolist()
         # save ExClus information into .h5ad file
         adata.uns['ExClus'] = {}
-        adata.uns['ExClus'] = {'si': self._si_opt, 'total-ic': self._total_ic_opt, 'priors': self._priors}
+        means = self.data.mean()
+        stds = self.data.std()
+        data_prior = np.hstack((means.values.reshape(len(means),1),stds.values.reshape(len(stds),1)))
+        prior = pd.DataFrame(data_prior,  index=column_names, columns=['mean', 'var'])
+        adata.uns['ExClus'] = {'si': self._si_opt, 'total-ic': self._total_ic_opt, 'priors': prior}
         for cluster in range(self._clusterlabel_max + 1):
             adata.uns['ExClus'][f'cluster {cluster}'] = {}
             adata.uns['ExClus'][f'cluster {cluster}']['attributes'] = [column_names[attr] for attr in self._attributes_opt[cluster]]

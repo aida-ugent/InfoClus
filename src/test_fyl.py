@@ -9,8 +9,8 @@ from si import ExclusOptimiser
 from utils import load_data
 from static_visual import painting
 
-# DATA_SET_NAME = 'immune'
-DATA_SET_NAME = 'uci_adult'
+DATA_SET_NAME = 'immune'
+# DATA_SET_NAME = 'uci_adult'
 # DATA_SET_NAME = 'german_socio_eco'
 
 DATA_FOLDER = f'C:/Users/Administrator/OneDrive - UGent/Documents/Data/ExClus/{DATA_SET_NAME}'
@@ -25,17 +25,23 @@ print("load data ... ", end='')
 df_data, df_data_scaled, lenBinary = load_data(path_to_data_file)
 print("done")
 
-alpha = 250
-beta = 1.5
+alpha = 400
+beta = 1.8
+min_att = 3
+max_att = 10
+runtime_id = 7
+
+if len(df_data.columns) < 3:
+    min_att = len(df_data.columns)
 
 for EMB_NAME in adata.obsm.keys():
-    if EMB_NAME == "tSNE_3":
+    if EMB_NAME == "tSNE_1":
         tic = time.time()
         embedding = adata.obsm.get(EMB_NAME)
-        optimiser = ExclusOptimiser(df_data, df_data_scaled, lenBinary, embedding, alpha=alpha, beta=beta,
+        optimiser = ExclusOptimiser(df_data, df_data_scaled, lenBinary, embedding,
+                                    alpha=alpha, beta=beta, min_att=min_att, max_att=max_att,
                                     name=DATA_SET_NAME, emb_name=EMB_NAME, work_folder=WORK_FOLDER)
-        optimiser.optimise(runtime_id=0)
-        # print(optimiser._res_in_brief)
+        optimiser.optimise(runtime_id=runtime_id)
         optimiser.save_adata(data_folder=f'C:/Users/Administrator/trace/data/{DATA_SET_NAME}')
         toc = time.time()
         print(f'Time: {toc - tic} s')
@@ -69,7 +75,7 @@ for EMB_NAME in adata.obsm.keys():
                 print(f'{file_index}: {all_files[file_index]}')
             file_index = int(input('\n which file to visualize: '))
             file_to_painting = all_files[file_index]
-            painting(DATA_SET_NAME, WORK_FOLDER, file_to_painting, df_data_scaled)
+            painting(DATA_SET_NAME, WORK_FOLDER, file_to_painting, df_data)
             IfVisual = input('\n visualization ExClus result? y/n: ')
 
 
