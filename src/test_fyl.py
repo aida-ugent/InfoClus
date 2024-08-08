@@ -27,7 +27,7 @@ print("done")
 
 alpha = 400
 beta = 1.8
-min_att = 3
+min_att = 2
 max_att = 10
 runtime_id = 7
 
@@ -37,14 +37,23 @@ if len(df_data.columns) < 3:
 for EMB_NAME in adata.obsm.keys():
     if EMB_NAME == "tSNE_1":
         tic = time.time()
+        tic0 = time.time()
         embedding = adata.obsm.get(EMB_NAME)
+        toc0 = time.time()
+        tic1 = time.time()
         optimiser = ExclusOptimiser(df_data, df_data_scaled, lenBinary, embedding,
                                     alpha=alpha, beta=beta, min_att=min_att, max_att=max_att,
                                     name=DATA_SET_NAME, emb_name=EMB_NAME, work_folder=WORK_FOLDER)
+        toc1 = time.time()
         optimiser.optimise(runtime_id=runtime_id)
+        tic2 = time.time()
         optimiser.save_adata(data_folder=f'C:/Users/Administrator/trace/data/{DATA_SET_NAME}')
+        toc2 = time.time()
         toc = time.time()
-        print(f'Time: {toc - tic} s')
+        print(f'total Time without loading data: {toc - tic} s')
+        print(f'    get emb Time: {toc0 - tic0} s')
+        print(f'    initialization Time: {toc1 - tic1} s')
+        print(f'    h5 file Time: {toc2 - tic2} s')
 
         if_continue = input('\n continue ExClus y/n: ')
         while if_continue == 'y':
@@ -75,7 +84,8 @@ for EMB_NAME in adata.obsm.keys():
                 print(f'{file_index}: {all_files[file_index]}')
             file_index = int(input('\n which file to visualize: '))
             file_to_painting = all_files[file_index]
-            painting(DATA_SET_NAME, WORK_FOLDER, file_to_painting, df_data)
+            output = f"../data/{DATA_SET_NAME}/{file_to_painting}.pdf"
+            painting(WORK_FOLDER, file_to_painting, df_data, output)
             IfVisual = input('\n visualization ExClus result? y/n: ')
 
 

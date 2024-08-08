@@ -6,88 +6,67 @@ import scipy.stats as ss
 import re
 import plotly.io as pio
 import os
+import mpld3
 
 from caching import from_cache
-from sklearn.preprocessing import MinMaxScaler
+from distributions import kde, bar
+from matplotlib.backends.backend_pdf import PdfPages
 
+kernels = ["gaussian", "tophat", "epanechnikov"]
+kernel = kernels[0]
+bandwidth=0.1
+testBandWidth = False
 
-'''
-def config_clustering(embedding, labels):
-    tuples = list(zip(embedding[:, 0], embedding[:, 1], labels))
-    df = pd.DataFrame(tuples, columns=['x', 'y', 'cluster'])
-    df = df.sort_values('cluster')
-    df["cluster"] = df["cluster"].astype(str)
-    figure = px.scatter(df, x='x', y='y', color='cluster',
-                        color_discrete_sequence=px.colors.qualitative.Dark24,
-                        height=500)
-    figure['layout'].update(autosize=False)
-    figure.update_layout(margin=dict(l=0, r=150, b=0, t=0))
-    figure.update_yaxes(automargin=True)
-    figure.update_yaxes(visible=False, showticklabels=False, mirror=True, showline=True)
-    figure.update_xaxes(visible=False, showticklabels=False, mirror=True, showline=True)
-    return figure
-    # figure.write_html('first_figure.html', auto_open=True)
-'''
-
-def config_explanation(data, labels, attributes, priors, dls, ics, max_cluster):
-
+def figures(data, labels, attributes,dls, ics, max_cluster, res_in_brief, output):
     figures = []
-
+    dict = {'Creator': 'My software', 'Author': 'Me', 'Keywords': res_in_brief}
+    op = PdfPages(output, metadata = dict)
+    if testBandWidth:
+        print(f'kernel: {kernel}')
+        bandwidth_c = float(input('\n bandwidth cluster (0.2 - ): '))
+        bandwidth_a = float(input('\n bandwidth all data (0.01 - 0.03): '))
     for cluster in range(max_cluster+1):
-
         cluster_data = data.iloc[np.nonzero(labels == cluster)[0], :]
         column_names = data.columns
-        means = cluster_data.mean()
-        stds = cluster_data.std()
-
         for attribute in attributes[cluster]:
-
             # DL = 2 so show to normal distributed curves (prior and cluster)
             if dls[attribute] == 2:
-                min_val = min(means.iloc[attribute] - 4 * stds.iloc[attribute],
-                              priors[0].iloc[attribute] - 4 * priors[1].iloc[attribute])
-                max_val = max(means.iloc[attribute] + 4 * stds.iloc[attribute],
-                              priors[0].iloc[attribute] + 4 * priors[1].iloc[attribute])
-                x = np.linspace(min_val, max_val, 1000)
-                epsilon = 0
-                if stds.iloc[attribute] == 0:
-                    epsilon = (max_val - min_val) / 100
-                y_cluster = ss.norm.pdf(x, means.iloc[attribute], stds.iloc[attribute] + epsilon)
-                y_prior = ss.norm.pdf(x, priors[0].iloc[attribute], priors[1].iloc[attribute])
-                plot_data = {column_names[attribute]: np.concatenate((x, x)),
-                             "pdf": np.concatenate((y_cluster, y_prior)),
-                             'labels': ['cluster'] * 1000 + ['all data'] * 1000}
-                df_explanation = pd.DataFrame(plot_data)
-
-                fig = px.line(df_explanation, x=column_names[attribute], y="pdf", color='labels',
-                              title=f'cluster {cluster} - attribute {attribute}', width=400, height=300)
+                column_name = column_names[attribute]
+                c_data = cluster_data[column_name].values.reshape(-1, 1)
+                a_data = data[column_name].values.reshape(-1, 1)
+                # if kernel == 'guassian':
+                q_c1 = np.percentile(c_data, 25)
+                q_c3 = np.percentile(c_data, 75)
+                iqr_c = q_c3 - q_c1
+                q_a1 = np.percentile(a_data, 25)
+                q_a3 = np.percentile(a_data, 75)
+                iqr_a = q_a3 - q_a1
+                min_c = min(np.std(c_data), iqr_c/1.34+0.00001)
+                min_a = min(np.std(a_data), iqr_a/1.34+0.00001)
+                bandwidth_c = 0.9 * min_c * c_data.shape[0] ** (-0.2)
+                bandwidth_a = 0.9 * min_a * a_data.shape[0] ** (-0.2)
+                fig = kde(c_data, a_data, cluster, column_name,
+                          kernel, bandwidth_c, bandwidth_a)
+                fig.savefig(op, format='pdf')
             # DL = 1 and it is a binary attribute, so show 2 stacked bar plots (cluster and prior)
             else:
                 column_name = column_names[attribute]
                 label1 = re.findall(r"(?<=\()(.*?)(?=::)", column_name)[0]
                 label0 = re.findall(r"(?<=::)(.*?)(?=\))", column_name)[0]
-                prior1 = priors[0].iloc[attribute] * 100
-                cluster1 = means.iloc[attribute] * 100
-                dist = [100 - cluster1, cluster1, 100 - prior1, prior1]
-                dist = (dist-min(dist)) / (max(dist)-min(dist))
-                plot_data = {column_names[attribute]: ["cluster"] * 2 + ["all data"] * 2,
-                             "distribution": dist.tolist(),
-                             "label": [label0, label1] * 2}
-                df_explanation = pd.DataFrame(plot_data)
-
-                fig = px.bar(df_explanation, x=column_names[attribute], y='distribution', color='label',
-                             title=f'cluster {cluster} - attribute {attribute}', width=400, height=300)
+                att_label1 = [sum(cluster_data[column_name]==1)/len(cluster_data[column_name]),
+                              sum(data[column_name]==1)/len(data[column_name])]
+                att_label0 = [1-x for x in att_label1]
+                fig = bar(att_label1, att_label0, column_name, (label1, label0), cluster)
+                fig.savefig(op, format='pdf')
             figures.append(fig)
-
+    op.close()
     return figures
 
-def painting(data_name, work_folder, file_to_painting, data):
+def painting(work_folder, file_to_painting, data, output):
 
     path_exclus_res = f'{work_folder}/{file_to_painting}'
     exclus_info = from_cache(path_exclus_res)
-    means = data.mean()
-    stds = data.std()
-    data_prior = [means, stds]
+
     dls = exclus_info['dls']
     res_in_brief = exclus_info['res_in_brief']
     clustering = exclus_info["clustering"]
@@ -95,55 +74,5 @@ def painting(data_name, work_folder, file_to_painting, data):
     ics = exclus_info['ic']
     max_cluster = exclus_info['maxlabel']
 
-    # figure_clustering = config_clustering(data_emb, clustering)
-    figures_explanation = config_explanation(data, clustering, attributes, data_prior, dls, ics, max_cluster)
-    # config_explanation(data, clustering, attributes, data_prior, dls, ics, max_cluster)
-    html_figs = []
-    # html_figs.append(pio.to_html(figure_clustering, full_html=False))
-    for figures_explanation in figures_explanation:
-        html_figs.append(pio.to_html(figures_explanation, full_html=False))
-    html_template = """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Plotly Figures</title>
-        <style>
-            body {{
-                display: flex;
-                flex-wrap: wrap;
-                justify-content: space-around;
-            }}
-            .plotly-figure {{
-                width: 45%;
-                margin: 20px;
-            }}
-        </style>
-    </head>
-    <body>
-        {res_in_brief}
-        {plots}
-    </body>
-    </html>
-    """
+    figures(data, clustering, attributes, dls, ics, max_cluster, res_in_brief, output)
 
-    res_in_brief = res_in_brief
-    plots = "".join(f'<div class="plotly-figure">{fig}</div>' for fig in html_figs)
-
-    # 将图表字符串插入到 HTML 模板中
-    html_content = html_template.format(res_in_brief=res_in_brief, plots=plots)
-
-    # Define the directory and file name
-    directory = f"../data/{data_name}"  # 替换为你想要保存的目录路径
-    file_name = f'{file_to_painting}.html'
-
-    # Ensure the directory exists
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-
-    # Create the full path
-    file_path = os.path.join(directory, file_name)
-
-    with open(file_path, "w") as f:
-        f.write(html_content)
-
-    print(f"HTML file created successfully: {file_to_painting}.html")
