@@ -7,14 +7,15 @@ from sklearn.neighbors import KernelDensity
 def kde(cluster: np.ndarray, dataset: np.ndarray, cluster_label: int, attribute_n: str,
         kernel: str, bandwidth_c: float = 0.1, bandwidth_a: float = 0.1):
 
-    # # min - max
-    # min_x = int(min(min(cluster), min(dataset)))
-    # max_x = int(max(max(cluster), max(dataset)))
-    # quantile
-    min_x = min(np.percentile(cluster, 25), np.percentile(dataset, 25))
-    max_x = max(np.percentile(cluster, 75), np.percentile(dataset, 75))
-    iqr = max_x - min_x
-    X_plot = np.linspace(min_x-iqr/4, max_x+iqr/4, 1000)[:, np.newaxis]
+    # min - max
+    min_x = int(min(min(cluster), min(dataset)))
+    max_x = int(max(max(cluster), max(dataset)))
+    X_plot = np.linspace(min_x, max_x, 1000)[:, np.newaxis]
+    # # quantile
+    # min_x = min(np.percentile(cluster, 25), np.percentile(dataset, 25))
+    # max_x = max(np.percentile(cluster, 75), np.percentile(dataset, 75))
+    # iqr = max_x - min_x
+    # X_plot = np.linspace(min_x-iqr/4, max_x+iqr/4, 1000)[:, np.newaxis]
 
     fig, ax = plt.subplots()
     colors = ["darkorange", "navy", "cornflowerblue"]

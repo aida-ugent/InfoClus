@@ -27,7 +27,7 @@ IfList = True
 IfScaled = True
 IfLimitAtt = True
 linkages = ['ward', 'complete', 'average', 'single']
-linkage = linkages[1]
+linkage = linkages[3]
 
 def kl_gaussian(mean1, std1, mean2, std2, epsilon=0.00001):
     std1 += epsilon
@@ -94,42 +94,59 @@ class ExclusOptimiser:
         self._targetsLen = len(self.data.columns)
         self.cache_path = work_folder
 
-        # clusterNode related
-        self._clusterTree_root = None
-        self._nodesToPoints = {}  # non-leaf nodes To points under these nodes, ranging from 0
-        self._meansForNodes = {}
-        self._varsForNodes = {}
+        hash_string, previously_calculated = self.check_cache()
+        if previously_calculated != None:
+            print(
+                f'-------------------- ExClus - Dataset: {self.name} Emb: {self.emb_name} Alpha: {self.alpha} Beta: {self.beta} Ref. Runtime: {self.runtime}\n')
+            print(f'Clusters: {len(set(self._clustering_opt))}\n')
+            clusters = list(range(self._clusterlabel_max + 1))
+            column_names = self.data.columns
+            for i in clusters:
+                print(f"  cluster {i}: {sum(self._clustering_opt == i)} points")
+                print(f'    attributes: ', end='')
+                for j in self._attributes_opt[i]:
+                    print(f'{column_names[j]} ', end='')
+                print("")
+            print("SI: ", self._si_opt)
+        else:
+            # clusterNode related
+            self._clusterTree_root = None
+            self._nodesToPoints = {}  # non-leaf nodes To points under these nodes, ranging from 0
+            self._meansForNodes = {}
+            self._varsForNodes = {}
 
-        # calculation
-        self._fit_model()  # get agglomarative clustering and get linage matrix
-        self._calc_priors()
+            # calculation
+            self._fit_model()  # get agglomarative clustering and get linage matrix
+            self._calc_priors()
 
-        # storing the optimal clustering and related information
-        self._clustering_opt = None  # indices
-        self._split_nodes_opt = []  # splitted nodes and their classification label, tuple inside
-        self._clusterlabel_max: int = 0  # maximum label, from 0
-        self._clustersRelatedInfo = {}  # means, vars, and counts for each cluster
-        self._attributes_opt = None  # chosen attributes for each cluster
-        self._ic_opt = None  # ic of all attributes for each cluster
-        self._nodes_opt = None  # the left nodes that could be used for further splitting
-        self._si_opt = 0  # value of si for this clustering
-        self._total_dl_opt = 0  # value for summing up length of attributes
-        self._total_ic_opt = 0  # value for summing up all ic used
-        self._res_in_brief = '' # string variable to record clustering result in brief
+            # storing the optimal clustering and related information
+            self._clustering_opt = None  # indices
+            self._split_nodes_opt = []  # splitted nodes and their classification label, tuple inside
+            self._clusterlabel_max: int = 0  # maximum label, from 0
+            self._clustersRelatedInfo = {}  # means, vars, and counts for each cluster
+            self._attributes_opt = None  # chosen attributes for each cluster
+            self._ic_opt = None  # ic of all attributes for each cluster
+            self._nodes_opt = None  # the left nodes that could be used for further splitting
+            self._si_opt = 0  # value of si for this clustering
+            self._total_dl_opt = 0  # value for summing up length of attributes
+            self._total_ic_opt = 0  # value for summing up all ic used
+            self._res_in_brief = '' # string variable to record clustering result in brief
 
-        # time related variables
-        self.TIME1_chooseOptimalSplit = 0
-        self.time_nodesEnumeration = 0
-        self.time_removingNodes = 0
-        self.time_infor_1 = 0
-        self.time_infor_2_icOneInfo = 0
-        self.time_infor_2_append = 0
-        self.time_infor_2_deepcopy = 0
-        self.time_infor_3 = 0
-        self.TIME1_1_calcOptimalAttributesDl = 0
-        self.TIME1_4_icOneInfo = 0
-        self.count1_4 = 0
-        self.TIME1_1_1_initOptimalAttributesDl = 0
+            # time related variables
+            self.TIME1_chooseOptimalSplit = 0
+            self.time_nodesEnumeration = 0
+            self.time_removingNodes = 0
+            self.time_infor_1 = 0
+            self.time_infor_2_icOneInfo = 0
+            self.time_infor_2_append = 0
+            self.time_infor_2_deepcopy = 0
+            self.time_infor_3 = 0
+            self.TIME1_1_calcOptimalAttributesDl = 0
+            self.TIME1_4_icOneInfo = 0
+            self.count1_4 = 0
+            self.TIME1_1_1_initOptimalAttributesDl = 0
+
+            self.optimise(runtime_id)
 
     def recur_mean(self, mean1, count1, mean2, count2):
         # combine two clusters

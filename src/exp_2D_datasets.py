@@ -262,9 +262,11 @@ for i_dataset, (dataset, algo_params) in enumerate(datasets):
     t0 = time.time()
     column_names = ['Column1', 'Column2']
     df = pd.DataFrame(X, columns=column_names)
-    optimiser = ExclusOptimiser(df, df, 0, df, alpha=50, beta=1.6,
+    optimiser = ExclusOptimiser(df, df, 0, df, alpha=50, beta=1.6, runtime_id=0,
                                 name=f'2D-data-{i_dataset}', emb_name='self', work_folder=f'../data/test')
-    clustering, attributes, si = optimiser.optimise(runtime_id=0)
+    clustering = optimiser._clustering_opt
+    attributes = optimiser._attributes_opt
+    si = optimiser._si_opt
     t1 = time.time()
     plt.subplot(len(datasets), len(clustering_algorithms) + 1, plot_num)
     if i_dataset == 0:
