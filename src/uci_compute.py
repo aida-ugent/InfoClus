@@ -1,20 +1,48 @@
+import numpy as np
+import anndata as ad
 import os
 import time
-import anndata as ad
-import warnings
-warnings.filterwarnings("ignore")
 
-from os.path import join
+from sklearn.manifold import TSNE
 from si import ExclusOptimiser
 from utils import load_data, load_data_sample
+from os.path import join
 from static_visual import painting
-from caching import from_cache
 
-DATA_SET_NAME = 'immune'
-# DATA_SET_NAME = 'uci_adult'
-# DATA_SET_NAME = 'german_socio_eco'
-# DATA_SET_NAME = 'cytometry_2500'
 
+def compute_embedding(data):
+
+    tsne = TSNE(n_components=2, verbose=2, perplexity=30, n_iter=1000, learning_rate=200, random_state=2)
+    embedding = tsne.fit_transform(data)
+    data = {'Y': embedding}
+
+    return data['Y']
+
+
+def normalize_embedding(arr):
+    """
+    Normalize the provided embedding to [-1,1].
+
+    Parameters:
+    arr (np.ndarray): The embedding to be normalized.
+
+    Returns:
+    np.ndarray: The normalized embedding array.
+    """
+    min = np.min(arr)
+    diff = np.max(arr) - min
+    arr = (2 * ((arr - min) / diff)) - 1
+    return arr
+
+def save_emb_adata(emb: np.ndarray, file_name: str = ''):
+
+    adata = ad.read_h5ad(file_name)
+    adata.obsm['Xander_tSNE'] = emb
+    adata.uns["methods"]['tSNE'] = np.append(adata.uns["methods"]['tSNE'],'Xander_tSNE')
+    adata.write(file_name)
+
+
+DATA_SET_NAME = 'uci_adult'
 DATA_FOLDER = f'C:/Users/Administrator/OneDrive - UGent/Documents/Data/ExClus/{DATA_SET_NAME}'
 WORK_FOLDER = f'../data/{DATA_SET_NAME}'
 DATA_FILE = f'{DATA_SET_NAME}.csv'
@@ -22,11 +50,17 @@ DATA_FILE = f'{DATA_SET_NAME}.csv'
 #  load and rearrange columns of data
 print("load data ... ", end='')
 path_to_data_file = join(DATA_FOLDER, DATA_FILE)
-adata = ad.read_h5ad(f'C:/Users/Administrator/trace/data/{DATA_SET_NAME}/{DATA_SET_NAME}.h5ad')
 df_data, df_data_scaled, lenBinary = load_data(path_to_data_file)
 print("done")
 
-alpha = 400
+EMB_NAME = 'Xander_tSNE'
+adata_file_path = f'C:/Users/Administrator/trace/data/{DATA_SET_NAME}/{DATA_SET_NAME}.h5ad'
+
+embedding = compute_embedding(df_data)
+nor_embedding = normalize_embedding(embedding)
+save_emb_adata(nor_embedding, adata_file_path)
+
+alpha = 200
 beta = 1.8
 min_att = 2
 max_att = 10
@@ -35,9 +69,9 @@ runtime_id = 8
 if len(df_data.columns) < min_att:
     min_att = len(df_data.columns)
 
-
+adata = ad.read_h5ad(adata_file_path)
 for EMB_NAME in adata.obsm.keys():
-    if EMB_NAME == "tSNE_1":
+    if EMB_NAME == "Xander_tSNE":
 
         embedding = adata.obsm.get(EMB_NAME)
 
@@ -78,21 +112,3 @@ for EMB_NAME in adata.obsm.keys():
             output = f"../data/{DATA_SET_NAME}/{file_to_painting}.pdf"
             painting(WORK_FOLDER, file_to_painting, df_data, output)
             IfVisual = input('\n visualization ExClus result? y/n: ')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

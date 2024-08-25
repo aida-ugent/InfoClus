@@ -19,7 +19,7 @@ from sklearn.cluster import AgglomerativeClustering
 from scipy.cluster.hierarchy import to_tree
 
 
-RUNTIME_OPTIONS = [0.01, 0.5, 1, 5, 10, 30, 60, 300, 600, 1800, 3600, np.inf]
+RUNTIME_OPTIONS = [0.01, 0.5, 1, 5, 10, 30, 60, 180, 300, 600, 1800, 3600, np.inf]
 IfProfile = False
 
 IfDeque = False
@@ -29,7 +29,13 @@ IfLimitAtt = True
 linkages = ['ward', 'complete', 'average', 'single']
 linkage = linkages[3]
 
-def kl_gaussian(mean1, std1, mean2, std2, epsilon=0.00001):
+def kl_gaussian(m1, s1, m2, s2, epsilon=0.00001):
+
+    mean1 = copy.copy(m1)
+    std1 = copy.copy(s1)
+    mean2 = copy.copy(m2)
+    std2 = copy.copy(s2)
+
     std1 += epsilon
     std2 += epsilon
     a = np.log(std2 / std1)
@@ -39,7 +45,11 @@ def kl_gaussian(mean1, std1, mean2, std2, epsilon=0.00001):
     return a + b - 1 / 2
 
 
-def kl_bernoulli(p, q, epsilon=0.00001):
+def kl_bernoulli(p_value, q_value, epsilon=0.00001):
+
+    p = copy.copy(p_value)
+    q = copy.copy(q_value)
+
     negative_p = p < 0
     negative_q = q < 0
     p[negative_p] = 0
@@ -146,7 +156,7 @@ class ExclusOptimiser:
             self.count1_4 = 0
             self.TIME1_1_1_initOptimalAttributesDl = 0
 
-            self.optimise(runtime_id)
+            self.optimise(runtime_id=runtime_id)
 
     def recur_mean(self, mean1, count1, mean2, count2):
         # combine two clusters
@@ -333,7 +343,6 @@ class ExclusOptimiser:
                 dl = dl + sum(1 if attribute<self._binaryTargetsLen else 2 for attribute in attributes)
                 sortedic = np.delete(sortedic, index, axis=0)
                 find_index = np.delete(find_index, index, axis=0)
-                #todo: return ics_dl
             best_comb_val = ic_attributes / (self.alpha + dl ** self.beta)
             ics_dl = collections.OrderedDict()
             ics_dl[1], ics_dl[2] = [], []
@@ -639,9 +648,10 @@ class ExclusOptimiser:
                     print("Clusters: ", len(set(self._clustering_opt)))
                     print("SI: ", self._si_opt)
                 self._clustering_opt = copy.deepcopy(clustering_new)
-                self._clusterlabel_max += 1
-                if self._clusterlabel_max != max(set(self._clustering_opt)):
-                    raise Exception('self._clusterlabel_max != len(set(self._clustering_opt))')
+                self._clusterlabel_max = max(set(self._clustering_opt))
+                # self._clusterlabel_max += 1
+                # if self._clusterlabel_max != max(set(self._clustering_opt)):
+                #     raise Exception('self._clusterlabel_max != len(set(self._clustering_opt))')
                 new_label = self._clusterlabel_max
                 self._split_nodes_opt.append((opt_node[0], new_label))
                 self._clustersRelatedInfo = copy.deepcopy(clustering_new_info)
@@ -654,9 +664,10 @@ class ExclusOptimiser:
             else:
                 local_optimum = True
         print("done")
-        print("refine start ... ", end='')
-        iterations_refine = self._iterate_refine()
-        print("done")
+        iterations_refine = 0
+        # print("refine start ... ", end='')
+        # iterations_refine = self._iterate_refine()
+        # print("done")
         print(f'Iterations {iterations} + {iterations_refine}')
         end_time = time.time()
         self._res_in_brief = f'''
