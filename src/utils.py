@@ -1,14 +1,20 @@
 import numpy as np
 import copy
 import pandas as pd
+import anndata as ad
 
 from sklearn.preprocessing import StandardScaler
+from typing import Union
+from sklearn.manifold import TSNE
 
 
-def load_data(path):
+def load_data(file: Union[str, pd.DataFrame]):
     # load all data, and reorder the columns of the data according to the attributes
     #     :return data and counts of binary attributes
-    data = pd.read_csv(path)
+    if isinstance(file, str):
+        data = pd.read_csv(file)
+    elif isinstance(file, pd.DataFrame):
+        data = file
     scaler = StandardScaler()
     data_scaled = copy.deepcopy(data)
     data_scaled[data_scaled.columns] = scaler.fit_transform(data_scaled[data_scaled.columns])
@@ -33,6 +39,7 @@ def load_data(path):
     data_scaled = data_scaled.iloc[:, reorder]
 
     return data, data_scaled, len_binary
+
 
 def load_data_sample(path, n_samples=2500, state=2):
     data = pd.read_csv(path)
@@ -65,3 +72,36 @@ def load_data_sample(path, n_samples=2500, state=2):
 
 
     return data_sampled, data_scaled, len_binary
+
+
+def compute_embedding(data):
+
+    tsne = TSNE(n_components=2, verbose=2, perplexity=30, n_iter=1000, learning_rate=200, random_state=2)
+    embedding = tsne.fit_transform(data)
+    data = {'Y': embedding}
+
+    return data['Y']
+
+
+def normalize_embedding(arr):
+    """
+    Normalize the provided embedding to [-1,1].
+
+    Parameters:
+    arr (np.ndarray): The embedding to be normalized.
+
+    Returns:
+    np.ndarray: The normalized embedding array.
+    """
+    min = np.min(arr)
+    diff = np.max(arr) - min
+    arr = (2 * ((arr - min) / diff)) - 1
+    return arr
+
+
+def save_emb_adata(emb: np.ndarray, emb_name: str = '', adata_file_name: str = ''):
+    # save a kind of tsne embedding into adata
+    adata = ad.read_h5ad(adata_file_name)
+    adata.obsm[emb_name] = emb
+    adata.uns["methods"]['tSNE'] = np.append(adata.uns["methods"]['tSNE'],emb_name)
+    adata.write(adata_file_name)
