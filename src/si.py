@@ -95,6 +95,8 @@ class ExclusOptimiser:
         self.data_scaled = df_scaled
         self.embedding = embedding
         self._binaryTargetsLen = lenBinary
+        if self._binaryTargetsLen == None:
+            self._allAttType = 'categorical'
         self.model = model
         self.alpha = alpha
         self.beta = beta
@@ -426,12 +428,8 @@ class ExclusOptimiser:
             for key, sortedic in ics_dl.items():
                 to_delete = best_combination[best_combination[:, 1] == key]
                 to_add = np.delete(sortedic, to_delete[:, 2], 0)
-                if IfDeque:
-                    deque_object = deque(to_add)
-                    ics_dl[key] = deque_object
-                if IfList:
-                    list_object = to_add.tolist()
-                    ics_dl[key] = list_object
+                list_object = to_add.tolist()
+                ics_dl[key] = list_object
 
             # Add attributes such that each cluster has one attribute at least
             # Attributes used to explain each cluster (row = cluster)
@@ -455,18 +453,14 @@ class ExclusOptimiser:
         new_value = best_comb_val
         ic_temp = 0
         dl_temp = 0
-        if IfList:
-            current_ic_index = 0
+        current_ic_index = 0
         while new_value > old_value:
             # New becomes old
             old_value = new_value
             # Check passed so update attributes, ic, and total dl + remove chosen attribute from its queue
             if old_value != best_comb_val:
-                if IfDeque:
-                    attr = ics_dl[dl_temp].popleft()
-                if IfList:
-                    attr = ics_dl[dl_temp][current_ic_index]
-                    current_ic_index += 1
+                attr = ics_dl[dl_temp][current_ic_index]
+                current_ic_index += 1
                 attributes_total[attr[0]].append(self._dl_indices[dl_temp][attr[1]])
                 dl += dl_temp
                 ic_attributes += ic_temp
@@ -477,10 +471,7 @@ class ExclusOptimiser:
             # Check in order of increasing dl which attribute to add
             for key, value in ics_dl.items():
                 try:
-                    if IfDeque:
-                        test_att = value[0]
-                    if IfList:
-                        test_att = value[current_ic_index]
+                    test_att = value[current_ic_index]
                 except:
                     continue
                 ic_test = ics[test_att[0]][self._dl_indices[key][test_att[1]]]

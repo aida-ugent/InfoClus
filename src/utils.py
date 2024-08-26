@@ -41,8 +41,11 @@ def load_data(file: Union[str, pd.DataFrame]):
     return data, data_scaled, len_binary
 
 
-def load_data_sample(path, n_samples=2500, state=2):
-    data = pd.read_csv(path)
+def load_data_sample(file: Union[str, pd.DataFrame], n_samples=2500, state=2):
+    if isinstance(file, str):
+        data = pd.read_csv(file)
+    elif isinstance(file, pd.DataFrame):
+        data = file
     try:
         data_sampled = data.sample(n_samples, random_state=state, axis=0)
     except:
@@ -70,6 +73,41 @@ def load_data_sample(path, n_samples=2500, state=2):
     data_sampled = data_sampled.iloc[:, reorder]
     data_scaled = data_scaled.iloc[:, reorder]
 
+
+    return data_sampled, data_scaled, len_binary
+
+
+def load_data_single_type(file: Union[str, pd.DataFrame]):
+    # load all data, and reorder the columns of the data according to the attributes
+    #     :return data and counts of binary attributes
+    if isinstance(file, str):
+        data = pd.read_csv(file)
+    elif isinstance(file, pd.DataFrame):
+        data = file
+    scaler = StandardScaler()
+    data_scaled = copy.deepcopy(data)
+    data_scaled[data_scaled.columns] = scaler.fit_transform(data_scaled[data_scaled.columns])
+
+    len_binary = None
+
+    return data, data_scaled, len_binary
+
+
+def load_data_single_type_sample(file: Union[str, pd.DataFrame], n_samples=2500, state=2):
+
+    if isinstance(file, str):
+        data = pd.read_csv(file)
+    elif isinstance(file, pd.DataFrame):
+        data = file
+
+    try:
+        data_sampled = data.sample(n_samples, random_state=state, axis=0)
+    except:
+        data_sampled = data
+    scaler = StandardScaler()
+    data_scaled = copy.deepcopy(data_sampled)
+    data_scaled[data_scaled.columns] = scaler.fit_transform(data_scaled[data_scaled.columns])
+    len_binary = None
 
     return data_sampled, data_scaled, len_binary
 
