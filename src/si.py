@@ -22,9 +22,6 @@ from scipy.cluster.hierarchy import to_tree
 RUNTIME_OPTIONS = [0.01, 0.5, 1, 5, 10, 30, 60, 180, 300, 600, 1800, 3600, np.inf]
 IfProfile = False
 
-IfDeque = False
-IfList = True
-IfScaled = True
 IfLimitAtt = True
 linkages = ['ward', 'complete', 'average', 'single']
 linkage = linkages[3]
@@ -208,10 +205,7 @@ class ExclusOptimiser:
             # compute count, mean, vars, parent
             if left_child < n_samples:
                 current_count_left += 1
-                if IfScaled:
-                    m_left = self.data_scaled.iloc[left_child].to_numpy()
-                else:
-                    m_left = self.data.iloc[left_child].to_numpy()
+                m_left = self.data_scaled.iloc[left_child].to_numpy()
                 var_left = np.zeros_like(m_left)
                 leafPoints.append(left_child)
             else:
@@ -226,10 +220,7 @@ class ExclusOptimiser:
             # count, mean, vars, parent
             if right_child < n_samples:
                 current_count_right += 1
-                if IfScaled:
-                    m_right = self.data_scaled.iloc[right_child].to_numpy()
-                else:
-                    m_right = self.data.iloc[right_child].to_numpy()
+                m_right = self.data_scaled.iloc[right_child].to_numpy()
                 var_right = np.zeros_like(m_right)
                 leafPoints.append(right_child)
             else:
@@ -792,12 +783,8 @@ class ExclusOptimiser:
 
         # changing: related info, ic
         info_others_old = related_info[0]
-        if IfScaled:
-            info_others_change = [self.data_scaled.iloc[other_points].mean(), self.data_scaled.iloc[other_points].var(),
+        info_others_change = [self.data_scaled.iloc[other_points].mean(), self.data_scaled.iloc[other_points].var(),
                                   len(other_points)]
-        else:
-            info_others_change = [self.data.iloc[other_points].mean(), self.data.iloc[other_points].var(),
-                              len(other_points)]
         info_others_new = self.recur_meanVar_remove(info_others_old[0], info_others_old[1], info_others_old[2],
                                                     info_others_change[0], info_others_change[1], info_others_change[2])
         if info_others_new == None and len(self._split_nodes_opt) == 3:
