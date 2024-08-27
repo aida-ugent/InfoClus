@@ -1,6 +1,7 @@
 import anndata as ad
 import os
 import time
+import pandas as pd
 
 from si import ExclusOptimiser
 from utils import load_data, load_data_sample, load_data_single_type, load_data_single_type_sample
@@ -13,6 +14,7 @@ mushroom = fetch_ucirepo(id=73)
 # data (as pandas dataframes)
 X = mushroom.data.features
 y = mushroom.data.targets
+y = y.apply(lambda col: pd.factorize(col)[0])
 
 DATA_SET_NAME = 'mushroom'
 DATA_FOLDER = f'C:/Users/Administrator/OneDrive - UGent/Documents/Data/ExClus/{DATA_SET_NAME}'
@@ -31,8 +33,8 @@ adata_file_path = f'C:/Users/Administrator/trace/data/{DATA_SET_NAME}/{DATA_SET_
 # nor_embedding = normalize_embedding(embedding)
 # save_emb_adata(nor_embedding, EMB_NAME, adata_file_path)
 
-alpha = 400
-beta = 1.2
+alpha = 2000
+beta = 1.5
 min_att = 2
 max_att = 10
 runtime_id = 6

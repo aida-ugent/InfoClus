@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 import copy
 import collections
@@ -77,6 +79,8 @@ def kl_bernoulli(p_value, q_value, epsilon=0.00001):
     return a + b
 
 
+
+
 class ExclusOptimiser:
 
     #  Initialize this class and do some basic computation
@@ -97,6 +101,8 @@ class ExclusOptimiser:
             if self._allAttType == 'categorical':
                 self._valuesOfAttributes = []
                 self._maxValuesOfAttributes = 0
+                self._fixedDl = 5
+                self._samplesWeight = None
         self.model = model
         self.alpha = alpha
         self.beta = beta
@@ -193,6 +199,8 @@ class ExclusOptimiser:
         return [mean2, var2, count2]
 
     def recur_dist_categorical(self, distribution1: pd.DataFrame, count1: int, distribution2: pd.DataFrame, count2: int) -> pd.DataFrame:
+        if (count1 + count2) == 0:
+            return None
         distribution3_value = (distribution1.values * count1 + distribution2.values * count2)/(count1 + count2)
         distribution3 = pd.DataFrame(distribution3_value, columns=distribution1.columns)
 
@@ -236,10 +244,10 @@ class ExclusOptimiser:
                 elif self._allAttType == 'categorical':
                     left_point = self.data_scaled.iloc[left_child]
                     m_left = pd.DataFrame(np.zeros((self._maxValuesOfAttributes, self.data.columns.size)), columns=self.data.columns)
-                    for j in range(self._targetsLen):
-                        att_value = left_point.values[j]
-                        i = self._valuesOfAttributes[j].get(att_value)
-                        m_left.iloc[i, j] = 1
+                    for j_column in range(self._targetsLen):
+                        att_value = left_point.values[j_column]
+                        i_row = self._valuesOfAttributes[j_column].get(att_value)
+                        m_left.iloc[i_row, j_column] = 1
                 leafPoints.append(left_child)
             else:
                 current_count_left += counts[left_child - n_samples]
@@ -262,10 +270,10 @@ class ExclusOptimiser:
                 elif self._allAttType == 'categorical':
                     right_point = self.data_scaled.iloc[right_child]
                     m_right = pd.DataFrame(np.zeros((self._maxValuesOfAttributes, self.data.columns.size)), columns=self.data.columns)
-                    for j in range(self._targetsLen):
-                        att_value = right_point.values[j]
-                        i = self._valuesOfAttributes[j].get(att_value)
-                        m_right.iloc[i, j] = 1
+                    for j_column in range(self._targetsLen):
+                        att_value = right_point.values[j_column]
+                        i_row = self._valuesOfAttributes[j_column].get(att_value)
+                        m_right.iloc[i_row, j_column] = 1
                 leafPoints.append(right_child)
             else:
                 current_count_right += counts[right_child - n_samples]
@@ -303,24 +311,29 @@ class ExclusOptimiser:
     # update self 1. _priors 2._priorsBernM 3._priorsGausM 4._priorsGausS
     def _calc_priors(self):
 
-        self._priors = np.array([self._meansForNodes[len(self.data) - 2], self._varsForNodes[len(self.data) - 2]]).T
-        self._priorsBernM = self._meansForNodes[len(self.data) - 2][0: self._binaryTargetsLen]
-        self._priorsGausM = self._meansForNodes[len(self.data) - 2][self._binaryTargetsLen:]
-        self._priorsGausS = self._varsForNodes[len(self.data) - 2][self._binaryTargetsLen:]
+        if self._binaryTargetsLen != None:
+            self._priors = np.array([self._meansForNodes[len(self.data) - 2], self._varsForNodes[len(self.data) - 2]]).T
+            self._priorsBernM = self._meansForNodes[len(self.data) - 2][0: self._binaryTargetsLen]
+            self._priorsGausM = self._meansForNodes[len(self.data) - 2][self._binaryTargetsLen:]
+            self._priorsGausS = self._varsForNodes[len(self.data) - 2][self._binaryTargetsLen:]
 
-        a = np.ones(self._binaryTargetsLen, dtype=int)
-        b = np.ones(self._targetsLen - self._binaryTargetsLen, dtype=int) + np.ones(
-                    self._targetsLen - self._binaryTargetsLen, dtype=int)
-        self._dls = np.append(a, b)
+            a = np.ones(self._binaryTargetsLen, dtype=int)
+            b = np.ones(self._targetsLen - self._binaryTargetsLen, dtype=int) + np.ones(
+                        self._targetsLen - self._binaryTargetsLen, dtype=int)
+            self._dls = np.append(a, b)
 
-        # Order attribute indices per dl to use later in dl optimisation
-        unique_dls = sorted(set(self._dls))
-        # Attributes indices split per dl, used to split IC into submatrix and later to find IC value of attribute
-        self._dl_indices = collections.OrderedDict()
-        for dl in unique_dls:
-            # Fill dl_indices for one dl value
-            indices = [i for i, value in enumerate(self._dls) if value == dl]
-            self._dl_indices[dl] = indices
+            # Order attribute indices per dl to use later in dl optimisation
+            unique_dls = sorted(set(self._dls))
+            # Attributes indices split per dl, used to split IC into submatrix and later to find IC value of attribute
+            self._dl_indices = collections.OrderedDict()
+            for dl in unique_dls:
+                # Fill dl_indices for one dl value
+                indices = [i for i, value in enumerate(self._dls) if value == dl]
+                self._dl_indices[dl] = indices
+
+        elif self._allAttType == 'categorical':
+            self._priors = self._distributionsForNodes[len(self.data) - 2]
+            self._dls = [len(attribute) for attribute in self._valuesOfAttributes]
 
     # given means, vars, n_samples of a cluster, return its ic, vectorization for attributes
     def ic_one_info(self, means_cluster, vars_cluster, n_samples):
@@ -352,6 +365,29 @@ class ExclusOptimiser:
         self.TIME1_4_icOneInfo += toc - tic
         self.count1_4 += 1
         return cluster_ic
+
+    def kl_categorical(self, distribution_cluster: np.ndarray, epsilon: float = 0.00001) -> np.ndarray:
+        # kl(p||q) = kl(prior||cluster)
+        # A simple interpretation of the KL divergence of P from Q is
+        # the expected excess surprise from using Q as a model instead of P
+        # when the actual distribution is P.
+
+        p = copy.copy(self._priors.values)
+        q = copy.copy(distribution_cluster)
+
+        q_safe = np.where(q == 0, np.finfo(float).eps, q)
+        p_over_q = p / q_safe
+        p_over_q = np.where(p_over_q <= 0, epsilon, p_over_q)
+
+        kl_mid_value = p * np.log(p_over_q)
+        # kl = np.array([np.sum(kl_mid_value[:dl, i]) for i, dl in enumerate(self._dls)])
+        kl = np.sum(kl_mid_value, axis=0)
+
+        return kl
+
+    def ic_categorical(self, distribution_cluster: pd.DataFrame, size_cluster: int) -> np.ndarray:
+        ic = (size_cluster ** self._samplesWeight) * self.kl_categorical(distribution_cluster.values)
+        return ic
 
     # change indices after splitting one node out into a new cluster
     def _node_indices_split(self, node_idx, pre_index=None, max_label=0):
@@ -385,20 +421,27 @@ class ExclusOptimiser:
                 attributes = [sortedic[ind][1] for ind in index]
                 attributes_total.append(attributes)
                 ic_attributes += sum(ics[i, attributes])
-                dl = dl + sum(1 if attribute<self._binaryTargetsLen else 2 for attribute in attributes)
+                if self._binaryTargetsLen != None:
+                    dl = dl + sum(1 if attribute<self._binaryTargetsLen else 2 for attribute in attributes)
+                elif self._allAttType == 'categorical':
+                    dl = dl + sum((self._fixedDl + self._dls[attribute]) for attribute in attributes)
                 sortedic = np.delete(sortedic, index, axis=0)
                 find_index = np.delete(find_index, index, axis=0)
             best_comb_val = ic_attributes / (self.alpha + dl ** self.beta)
-            ics_dl = collections.OrderedDict()
-            ics_dl[1], ics_dl[2] = [], []
-            for sort in sortedic:
-                cluster = sort[0]
-                att = sort[1]
-                if att < self._binaryTargetsLen:
-                    ics_dl[1].append(sort)
-                else:
-                    new_sort = [cluster, att-self._binaryTargetsLen]
-                    ics_dl[2].append(new_sort)
+
+            if self._binaryTargetsLen != None:
+                ics_dl = collections.OrderedDict()
+                ics_dl[1], ics_dl[2] = [], []
+                for sort in sortedic:
+                    cluster = sort[0]
+                    att = sort[1]
+                    if att < self._binaryTargetsLen:
+                        ics_dl[1].append(sort)
+                    else:
+                        new_sort = [cluster, att-self._binaryTargetsLen]
+                        ics_dl[2].append(new_sort)
+            elif self._allAttType == 'categorical':
+                ics_dl = sortedic
         else:
             # Which type of dl exist
             unique_dls = sorted(set(self._dls))
@@ -492,44 +535,70 @@ class ExclusOptimiser:
         attributes_total, ic_attributes, dl, best_comb_val, ics_dl = self._init_optimal_attributes_dl(ics)
 
         # Optimise
-        old_value = -1
-        new_value = best_comb_val
-        ic_temp = 0
-        dl_temp = 0
-        current_ic_index = 0
-        while new_value > old_value:
-            # New becomes old
-            old_value = new_value
-            # Check passed so update attributes, ic, and total dl + remove chosen attribute from its queue
-            if old_value != best_comb_val:
-                attr = ics_dl[dl_temp][current_ic_index]
-                current_ic_index += 1
-                attributes_total[attr[0]].append(self._dl_indices[dl_temp][attr[1]])
-                dl += dl_temp
-                ic_attributes += ic_temp
-            # Look for next attribute to test
+        if self._binaryTargetsLen != None:
+            si = -1
+            new_value = best_comb_val
             ic_temp = 0
-            new_temp = 0
             dl_temp = 0
-            # Check in order of increasing dl which attribute to add
-            for key, value in ics_dl.items():
-                try:
-                    test_att = value[current_ic_index]
-                except:
-                    continue
-                ic_test = ics[test_att[0]][self._dl_indices[key][test_att[1]]]
-                # Only check att with higher dl if ic higher
-                if ic_test < ic_temp:
-                    continue
-                new_test = (ic_attributes + ic_test) / (self.alpha + (dl + key) ** self.beta)
-                if new_test > new_temp:
-                    new_temp = new_test
-                    ic_temp = ic_test
-                    dl_temp = key
-            new_value = new_temp
+            current_ic_index = 0
+            while new_value > si:
+                # New becomes old
+                si = new_value
+                # Check passed so update attributes, ic, and total dl + remove chosen attribute from its queue
+                if si != best_comb_val:
+                    attr = ics_dl[dl_temp][current_ic_index]
+                    current_ic_index += 1
+                    attributes_total[attr[0]].append(self._dl_indices[dl_temp][attr[1]])
+                    dl += dl_temp
+                    ic_attributes += ic_temp
+                # Look for next attribute to test
+                ic_temp = 0
+                new_temp = 0
+                dl_temp = 0
+                # Check in order of increasing dl which attribute to add
+                for key, value in ics_dl.items():
+                    try:
+                        test_att = value[current_ic_index]
+                    except:
+                        continue
+                    ic_test = ics[test_att[0]][self._dl_indices[key][test_att[1]]]
+                    # Only check att with higher dl if ic higher
+                    if ic_test < ic_temp:
+                        continue
+                    si_test = (ic_attributes + ic_test) / (self.alpha + (dl + key) ** self.beta)
+                    if si_test > new_temp:
+                        new_temp = si_test
+                        ic_temp = ic_test
+                        dl_temp = key
+                new_value = new_temp
+
+        elif self._allAttType == 'categorical':
+
+            si = best_comb_val
+            left_chances = 2
+
+            for row in ics_dl:
+
+                test_cluster = row[0]
+                test_att = row[1]
+                ic_test = ics[test_cluster][test_att]
+                si_test = (ic_attributes + ic_test) / (
+                            self.alpha + (dl + self._fixedDl + self._dls[test_att]) ** self.beta)
+
+                if si_test > si:
+                    attributes_total[test_cluster].append(test_att)
+                    ic_attributes = ic_attributes + ic_test
+                    dl = dl + self._fixedDl + self._dls[test_att]
+                    si = si_test
+                else:
+                    left_chances = left_chances - 1
+
+                if left_chances < 0:
+                    break
+
         toc = time.time()
         self.TIME1_1_calcOptimalAttributesDl += toc - tic
-        return attributes_total, ic_attributes, dl, old_value
+        return attributes_total, ic_attributes, dl, si
 
     # choose the best node to split
     def _choose_optimal_split(self, nodes, clustering=None, clusteringInfo=None, max_cluster_label=0, ic_temp=None):
@@ -559,11 +628,18 @@ class ExclusOptimiser:
             before_split = np.append(idx_old, idx_new)
             new_clusteringInfo = copy.deepcopy(clusteringInfo)
             clusterInfo = new_clusteringInfo.get(old_cluster)
-            nodeInfo = [self._meansForNodes.get(node_idx), self._varsForNodes.get(node_idx), len(idx_new)]
-            otherInfo = self.recur_meanVar_remove(clusterInfo[0], clusterInfo[1], clusterInfo[2],
-                                                  nodeInfo[0], nodeInfo[1], nodeInfo[2])
-            if otherInfo == None:
-                continue
+            if self._binaryTargetsLen != None:
+                nodeInfo = [self._meansForNodes.get(node_idx), self._varsForNodes.get(node_idx), len(idx_new)]
+                otherInfo = self.recur_meanVar_remove(clusterInfo[0], clusterInfo[1], clusterInfo[2],
+                                                      nodeInfo[0], nodeInfo[1], nodeInfo[2])
+                if otherInfo == None:
+                    continue
+            elif self._allAttType == 'categorical':
+                nodeInfo = [self._distributionsForNodes.get(node_idx), len(idx_new)]
+                otherInfo = [self.recur_dist_categorical(clusterInfo[0], clusterInfo[1],
+                                                      nodeInfo[0], -nodeInfo[1]), clusterInfo[1] - nodeInfo[1]]
+                if otherInfo[1] == 0:
+                    continue
             new_clusteringInfo[old_cluster] = otherInfo
             new_clusteringInfo[new_cluster] = nodeInfo
             toc_infor_1 = time.time()
@@ -572,21 +648,65 @@ class ExclusOptimiser:
             tic_infor_2 = time.time()
             if clustering is None:
                 ics = []
-                tic_append = time.time()
-                ics.append(self.ic_one_info(otherInfo[0], otherInfo[1], otherInfo[2]))
-                ics.append(self.ic_one_info(nodeInfo[0], nodeInfo[1], nodeInfo[2]))
-                toc_append = time.time()
-                self.time_infor_2_append += toc_append - tic_append
+
+                if self._binaryTargetsLen != None:
+                    ics.append(self.ic_one_info(otherInfo[0], otherInfo[1], otherInfo[2]))
+                    ics.append(self.ic_one_info(nodeInfo[0], nodeInfo[1], nodeInfo[2]))
+
+                elif self._allAttType == 'categorical':
+
+                    if self._samplesWeight == None:
+
+                        kl_otherCluster = self.kl_categorical(otherInfo[0].values)
+                        kl_nodeCluster = self.kl_categorical(nodeInfo[0].values)
+
+                        if np.max(kl_nodeCluster) > np.max(kl_otherCluster):
+
+                            scale_factor = np.max(kl_nodeCluster) / np.max(kl_otherCluster)
+                            self._samplesWeight = round(math.log(scale_factor)/math.log(otherInfo[1]/nodeInfo[1]))
+
+                            ics.append((otherInfo[1] ** self._samplesWeight) * kl_otherCluster)
+                            ics.append((nodeInfo[1] ** self._samplesWeight) * kl_nodeCluster)
+
+                        elif np.max(kl_nodeCluster) < np.max(kl_otherCluster):
+
+                            scale_factor = np.max(kl_otherCluster) / np.max(kl_nodeCluster)
+                            self._samplesWeight = round(math.log(scale_factor) / math.log(nodeInfo[1] / otherInfo[1]))
+
+                            ics.append((otherInfo[1] ** self._samplesWeight) * kl_otherCluster)
+                            ics.append((nodeInfo[1] ** self._samplesWeight) * kl_nodeCluster)
+
+                        else:
+                            self._samplesWeight = 1
+
+                            ics.append((otherInfo[1] ** self._samplesWeight) * kl_otherCluster)
+                            ics.append((nodeInfo[1] ** self._samplesWeight) * kl_nodeCluster)
+
+                    else:
+
+                        ics.append(self.ic_categorical(otherInfo[0], otherInfo[1]))
+                        ics.append(self.ic_categorical(nodeInfo[0], nodeInfo[1]))
+
             else:
-                tic_deepcopy = time.time()
+
                 ics = copy.copy(ic_temp)
-                toc_deepcopy = time.time()
-                self.time_infor_2_deepcopy += toc_deepcopy - tic_deepcopy
-                ics[old_cluster] = self.ic_one_info(otherInfo[0], otherInfo[1], otherInfo[2])
-                tic_append = time.time()
-                ics.append(self.ic_one_info(nodeInfo[0], nodeInfo[1], nodeInfo[2]))
-                toc_append = time.time()
-                self.time_infor_2_append += toc_append - tic_append
+
+                if self._binaryTargetsLen != None:
+
+                    ics[old_cluster] = self.ic_one_info(otherInfo[0], otherInfo[1], otherInfo[2])
+                    ics.append(self.ic_one_info(nodeInfo[0], nodeInfo[1], nodeInfo[2]))
+
+                elif self._allAttType == 'categorical':
+
+                    if self._samplesWeight == None:
+                        print("Error, when clustering is not none, self._samplesWeight should already be assigned")
+
+                    else:
+
+                        ics[old_cluster] = self.ic_categorical(otherInfo[0], otherInfo[1])
+                        ics.append(self.ic_categorical(nodeInfo[0], nodeInfo[1]))
+
+
             toc_infor_2 = time.time()
             self.time_infor_2_icOneInfo += toc_infor_2 - tic_infor_2
             # get attributes for each cluster
@@ -650,7 +770,10 @@ class ExclusOptimiser:
         clustering_new = None
         self._split_nodes_opt.append(("others", 0))
         clustering_new_info = {}
-        clustering_new_info[0] = [self._priors[:, 0], self._priors[:, 1], len(self.data)]
+        if self._binaryTargetsLen != None:
+            clustering_new_info[0] = [self._priors[:, 0], self._priors[:, 1], len(self.data)]
+        elif self._allAttType == 'categorical':
+            clustering_new_info[0] = [self._priors, len(self.data_scaled)]
         ic_new = None
         local_optimum = False
         iterations = 0
