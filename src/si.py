@@ -94,6 +94,9 @@ class ExclusOptimiser:
         self._binaryTargetsLen = lenBinary
         if self._binaryTargetsLen == None:
             self._allAttType = 'categorical'
+            if self._allAttType == 'categorical':
+                self._valuesOfAttributes = []
+                self._maxValuesOfAttributes = 0
         self.model = model
         self.alpha = alpha
         self.beta = beta
@@ -121,8 +124,11 @@ class ExclusOptimiser:
             # clusterNode related
             self._clusterTree_root = None
             self._nodesToPoints = {}  # non-leaf nodes To points under these nodes, ranging from 0
-            self._meansForNodes = {}
-            self._varsForNodes = {}
+            if self._binaryTargetsLen != None:
+                self._meansForNodes = {}
+                self._varsForNodes = {}
+            else:
+                self._distributionsForNodes = {}
 
             # calculation
             self._fit_model()  # get agglomarative clustering and get linage matrix
@@ -186,12 +192,31 @@ class ExclusOptimiser:
         var2[negas_var2] = 0
         return [mean2, var2, count2]
 
+    def recur_dist_categorical(self, distribution1: pd.DataFrame, count1: int, distribution2: pd.DataFrame, count2: int) -> pd.DataFrame:
+        distribution3_value = (distribution1.values * count1 + distribution2.values * count2)/(count1 + count2)
+        distribution3 = pd.DataFrame(distribution3_value, columns=distribution1.columns)
+
+        return distribution3
+
     # update self 1. _parents, 2. _linkage_matrix and 3. _clusterTree_root
     def _create_linkage(self):
 
         counts = np.zeros(self.model.children_.shape[0])
         n_samples = len(self.model.labels_)
         parents = np.full(self.model.children_.shape[0], -1)
+
+        # initialize possible values of all attributes
+        dist_attributes_zeros = []
+        for column in self.data_scaled.columns:
+
+            possible_values = list(set(self.data_scaled[column]))
+            df_column_values = pd.DataFrame(0, index=range(1), columns=possible_values)
+            # todo, delete dist_attributes_zeros???
+            dist_attributes_zeros.append(df_column_values)
+            self._valuesOfAttributes.append({value: index for index, value in enumerate(possible_values)})
+
+            if len(possible_values) > self._maxValuesOfAttributes:
+                self._maxValuesOfAttributes = len(possible_values)
 
         # for each merge in agglomerative clustering, do computation
         for i, merge in enumerate(self.model.children_):
@@ -205,14 +230,25 @@ class ExclusOptimiser:
             # compute count, mean, vars, parent
             if left_child < n_samples:
                 current_count_left += 1
-                m_left = self.data_scaled.iloc[left_child].to_numpy()
-                var_left = np.zeros_like(m_left)
+                if self._binaryTargetsLen != None:
+                    m_left = self.data_scaled.iloc[left_child].to_numpy()
+                    var_left = np.zeros_like(m_left)
+                elif self._allAttType == 'categorical':
+                    left_point = self.data_scaled.iloc[left_child]
+                    m_left = pd.DataFrame(np.zeros((self._maxValuesOfAttributes, self.data.columns.size)), columns=self.data.columns)
+                    for j in range(self._targetsLen):
+                        att_value = left_point.values[j]
+                        i = self._valuesOfAttributes[j].get(att_value)
+                        m_left.iloc[i, j] = 1
                 leafPoints.append(left_child)
             else:
                 current_count_left += counts[left_child - n_samples]
                 parents[left_child - n_samples] = i  # correction by Fuyin Lai
-                m_left = self._meansForNodes.get(left_child - n_samples)
-                var_left = self._varsForNodes.get(left_child - n_samples)
+                if self._binaryTargetsLen != None:
+                    m_left = self._meansForNodes.get(left_child - n_samples)
+                    var_left = self._varsForNodes.get(left_child - n_samples)
+                elif self._allAttType == 'categorical':
+                    m_left = self._distributionsForNodes.get(left_child - n_samples)
                 leafPoints.extend(self._nodesToPoints[left_child - n_samples])
             # right child
             right_child = merge[1]
@@ -220,23 +256,39 @@ class ExclusOptimiser:
             # count, mean, vars, parent
             if right_child < n_samples:
                 current_count_right += 1
-                m_right = self.data_scaled.iloc[right_child].to_numpy()
-                var_right = np.zeros_like(m_right)
+                if self._binaryTargetsLen != None:
+                    m_right = self.data_scaled.iloc[right_child].to_numpy()
+                    var_right = np.zeros_like(m_right)
+                elif self._allAttType == 'categorical':
+                    right_point = self.data_scaled.iloc[right_child]
+                    m_right = pd.DataFrame(np.zeros((self._maxValuesOfAttributes, self.data.columns.size)), columns=self.data.columns)
+                    for j in range(self._targetsLen):
+                        att_value = right_point.values[j]
+                        i = self._valuesOfAttributes[j].get(att_value)
+                        m_right.iloc[i, j] = 1
                 leafPoints.append(right_child)
             else:
                 current_count_right += counts[right_child - n_samples]
                 parents[right_child - n_samples] = i  # correction by Fuyin Lai
-                m_right = self._meansForNodes.get(right_child - n_samples)
-                var_right = self._varsForNodes.get(right_child - n_samples)
+                if self._binaryTargetsLen != None:
+                    m_right = self._meansForNodes.get(right_child - n_samples)
+                    var_right = self._varsForNodes.get(right_child - n_samples)
+                elif self._allAttType == 'categorical':
+                    m_right = self._distributionsForNodes.get(right_child - n_samples)
                 leafPoints.extend(self._nodesToPoints[right_child - n_samples])
 
             # new mean, var and count for node i
-            meanForNode = self.recur_mean(m_left, current_count_left,
-                                          m_right, current_count_right)
-            self._meansForNodes[i] = meanForNode
-            varForNode = self.recur_var(m_left, var_left, current_count_left,
-                                        m_right, var_right, current_count_right)
-            self._varsForNodes[i] = varForNode
+            if self._binaryTargetsLen != None:
+                meanForNode = self.recur_mean(m_left, current_count_left,
+                                              m_right, current_count_right)
+                self._meansForNodes[i] = meanForNode
+                varForNode = self.recur_var(m_left, var_left, current_count_left,
+                                            m_right, var_right, current_count_right)
+                self._varsForNodes[i] = varForNode
+            elif self._allAttType == 'categorical':
+                distForNode = self.recur_dist_categorical(m_left, current_count_left,
+                                              m_right, current_count_right)
+                self._distributionsForNodes[i] = distForNode
             counts[i] = current_count_left + current_count_right
 
         # update self

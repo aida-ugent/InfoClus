@@ -82,8 +82,10 @@ def load_data_single_type(file: Union[str, pd.DataFrame]):
     #     :return data and counts of binary attributes
     if isinstance(file, str):
         data = pd.read_csv(file)
+        data = data.apply(lambda col: pd.factorize(col)[0])
     elif isinstance(file, pd.DataFrame):
         data = file
+        data = data.apply(lambda col: pd.factorize(col)[0])
     scaler = StandardScaler()
     data_scaled = copy.deepcopy(data)
     data_scaled[data_scaled.columns] = scaler.fit_transform(data_scaled[data_scaled.columns])
@@ -97,8 +99,10 @@ def load_data_single_type_sample(file: Union[str, pd.DataFrame], n_samples=2500,
 
     if isinstance(file, str):
         data = pd.read_csv(file)
+        data = data.apply(lambda col: pd.factorize(col)[0])
     elif isinstance(file, pd.DataFrame):
         data = file
+        data = data.apply(lambda col: pd.factorize(col)[0])
 
     try:
         data_sampled = data.sample(n_samples, random_state=state, axis=0)
