@@ -97,13 +97,13 @@ class ExclusOptimiser:
         self.data_scaled = df_scaled
         self.embedding = embedding
         self._binaryTargetsLen = lenBinary
+        self._samplesWeight = None
         if self._binaryTargetsLen == None:
             self._allAttType = 'categorical'
             if self._allAttType == 'categorical':
                 self._valuesOfAttributes = []
                 self._maxValuesOfAttributes = 0
                 self._fixedDl = 5
-                self._samplesWeight = None
         self.model = model
         self.alpha = alpha
         self.beta = beta
@@ -344,7 +344,6 @@ class ExclusOptimiser:
 
     # given means, vars, n_samples of a cluster, return its ic, vectorization for attributes
     def ic_one_info(self, means_cluster, vars_cluster, n_samples):
-        tic = time.time()
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter('always')
@@ -355,22 +354,21 @@ class ExclusOptimiser:
 
         # stds_cluster = vars_cluster ** 0.5
         cluster_ic = []
+
         # ic for all Bernoulli targets
         if self._binaryTargetsLen != 0:
             means_binary_cluster = means_cluster[0: self._binaryTargetsLen]
-            ic1 = n_samples * kl_bernoulli(means_binary_cluster, self._priorsBernM)
+            ic1 = (n_samples ** self._samplesWeight) * kl_bernoulli(means_binary_cluster, self._priorsBernM)
             cluster_ic.extend(ic1)
+
         # ic for all Gaussian targets
         if self._binaryTargetsLen != self._targetsLen:
             means_gaussian_cluster = means_cluster[self._binaryTargetsLen:]
             stds_gaussian_cluster = stds_cluster[self._binaryTargetsLen:]
-            ic2 = n_samples * kl_gaussian(means_gaussian_cluster, stds_gaussian_cluster, self._priorsGausM,
+            ic2 = (n_samples ** self._samplesWeight) * kl_gaussian(means_gaussian_cluster, stds_gaussian_cluster, self._priorsGausM,
                                           self._priorsGausS)
             cluster_ic.extend(ic2)
 
-        toc = time.time()
-        self.TIME1_4_icOneInfo += toc - tic
-        self.count1_4 += 1
         return cluster_ic
 
     def kl_categorical(self, distribution_cluster: np.ndarray, epsilon: float = 0.00001) -> np.ndarray:
@@ -650,8 +648,38 @@ class ExclusOptimiser:
                 ics = []
 
                 if self._binaryTargetsLen != None:
-                    ics.append(self.ic_one_info(otherInfo[0], otherInfo[1], otherInfo[2]))
-                    ics.append(self.ic_one_info(nodeInfo[0], nodeInfo[1], nodeInfo[2]))
+
+                    if self._samplesWeight == None:
+
+                        kl_otherCluster = kl_gaussian(otherInfo[0][self._binaryTargetsLen:], otherInfo[1][self._binaryTargetsLen:], self._priorsGausM, self._priorsGausS)
+                        kl_nodeCluster = kl_gaussian(nodeInfo[0][self._binaryTargetsLen:], nodeInfo[1][self._binaryTargetsLen:], self._priorsGausM, self._priorsGausS)
+
+                        if np.max(kl_nodeCluster) > np.max(kl_otherCluster):
+
+                            scale_factor = np.max(kl_nodeCluster) / np.max(kl_otherCluster)
+                            self._samplesWeight = round(math.log(scale_factor)/math.log(otherInfo[1]/nodeInfo[1]), 1)
+
+                            ics.append((otherInfo[1] ** self._samplesWeight) * kl_otherCluster)
+                            ics.append((nodeInfo[1] ** self._samplesWeight) * kl_nodeCluster)
+
+                        elif np.max(kl_nodeCluster) < np.max(kl_otherCluster):
+
+                            scale_factor = np.max(kl_otherCluster) / np.max(kl_nodeCluster)
+                            self._samplesWeight = round(math.log(scale_factor) / math.log(nodeInfo[1] / otherInfo[1]), 1)
+
+                            ics.append((otherInfo[1] ** self._samplesWeight) * kl_otherCluster)
+                            ics.append((nodeInfo[1] ** self._samplesWeight) * kl_nodeCluster)
+
+                        else:
+                            self._samplesWeight = 1
+
+                            ics.append((otherInfo[1] ** self._samplesWeight) * kl_otherCluster)
+                            ics.append((nodeInfo[1] ** self._samplesWeight) * kl_nodeCluster)
+
+                    else:
+
+                        ics.append(self.ic_one_info(otherInfo[0], otherInfo[1], otherInfo[2]))
+                        ics.append(self.ic_one_info(nodeInfo[0], nodeInfo[1], nodeInfo[2]))
 
                 elif self._allAttType == 'categorical':
 
@@ -693,8 +721,13 @@ class ExclusOptimiser:
 
                 if self._binaryTargetsLen != None:
 
-                    ics[old_cluster] = self.ic_one_info(otherInfo[0], otherInfo[1], otherInfo[2])
-                    ics.append(self.ic_one_info(nodeInfo[0], nodeInfo[1], nodeInfo[2]))
+                    if self._samplesWeight == None:
+                        print("Error, when clustering is not none, self._samplesWeight should already be assigned")
+
+                    else:
+
+                        ics[old_cluster] = self.ic_one_info(otherInfo[0], otherInfo[1], otherInfo[2])
+                        ics.append(self.ic_one_info(nodeInfo[0], nodeInfo[1], nodeInfo[2]))
 
                 elif self._allAttType == 'categorical':
 
@@ -706,9 +739,6 @@ class ExclusOptimiser:
                         ics[old_cluster] = self.ic_categorical(otherInfo[0], otherInfo[1])
                         ics.append(self.ic_categorical(nodeInfo[0], nodeInfo[1]))
 
-
-            toc_infor_2 = time.time()
-            self.time_infor_2_icOneInfo += toc_infor_2 - tic_infor_2
             # get attributes for each cluster
             attributes, ic_attributes, dl, si_val = self.calc_optimal_attributes_dl(ics)
 
