@@ -33,11 +33,11 @@ adata_file_path = f'C:/Users/Administrator/trace/data/{DATA_SET_NAME}/{DATA_SET_
 # nor_embedding = normalize_embedding(embedding)
 # save_emb_adata(nor_embedding, EMB_NAME, adata_file_path)
 
-alpha = 2000
+alpha = 3000
 beta = 1.5
 min_att = 2
 max_att = 10
-runtime_id = 6
+runtime_id = 4
 
 if len(df_data.columns) < min_att:
     min_att = len(df_data.columns)
@@ -51,7 +51,7 @@ for EMB_NAME in adata.obsm.keys():
         optimiser = ExclusOptimiser(df_data, df_data_scaled,
                                     lenBinary, embedding,name=DATA_SET_NAME, emb_name=EMB_NAME,
                                     alpha=alpha, beta=beta, min_att=min_att, max_att=max_att, runtime_id=runtime_id, work_folder=WORK_FOLDER)
-        optimiser.save_adata(data_folder=f'C:/Users/Administrator/trace/data/{DATA_SET_NAME}')
+        adata = optimiser.save_adata(data_folder=f'C:/Users/Administrator/trace/data/{DATA_SET_NAME}')
         adata.obs['true_label'] = y.values
         adata.write(adata_file_path)
 

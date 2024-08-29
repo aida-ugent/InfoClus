@@ -29,6 +29,7 @@ linkages = ['ward', 'complete', 'average', 'single']
 linkage = linkages[3]
 
 def kl_gaussian(m1, s1, m2, s2, epsilon=0.00001):
+    # kl(custer||prior)
 
     mean1 = copy.copy(m1)
     std1 = copy.copy(s1)
@@ -106,6 +107,7 @@ class ExclusOptimiser:
         self.model = model
         self.alpha = alpha
         self.beta = beta
+        self.epsilon = 0.00001
         self.min_att = min_att
         self.max_att = max_att
         self.runtime = RUNTIME_OPTIONS[runtime_id]
@@ -214,17 +216,22 @@ class ExclusOptimiser:
         parents = np.full(self.model.children_.shape[0], -1)
 
         # initialize possible values of all attributes
-        dist_attributes_zeros = []
         for column in self.data_scaled.columns:
 
             possible_values = list(set(self.data_scaled[column]))
-            df_column_values = pd.DataFrame(0, index=range(1), columns=possible_values)
-            # todo, delete dist_attributes_zeros???
-            dist_attributes_zeros.append(df_column_values)
             self._valuesOfAttributes.append({value: index for index, value in enumerate(possible_values)})
 
             if len(possible_values) > self._maxValuesOfAttributes:
                 self._maxValuesOfAttributes = len(possible_values)
+
+        # build empty distribution
+        if self._binaryTargetsLen == None:
+            if self._allAttType == 'categorical':
+                np_data = np.zeros((self._maxValuesOfAttributes, self.data.columns.size))
+                a = np.array([len(df) for df in self._valuesOfAttributes])
+                mask = np.arange(np_data.shape[0])[:, None] >= a
+                np_data[mask] = self.epsilon
+                empty_distribution = pd.DataFrame(np_data, columns=self.data.columns)
 
         # for each merge in agglomerative clustering, do computation
         for i, merge in enumerate(self.model.children_):
@@ -243,7 +250,7 @@ class ExclusOptimiser:
                     var_left = np.zeros_like(m_left)
                 elif self._allAttType == 'categorical':
                     left_point = self.data_scaled.iloc[left_child]
-                    m_left = pd.DataFrame(np.zeros((self._maxValuesOfAttributes, self.data.columns.size)), columns=self.data.columns)
+                    m_left = empty_distribution.copy()
                     for j_column in range(self._targetsLen):
                         att_value = left_point.values[j_column]
                         i_row = self._valuesOfAttributes[j_column].get(att_value)
@@ -269,7 +276,7 @@ class ExclusOptimiser:
                     var_right = np.zeros_like(m_right)
                 elif self._allAttType == 'categorical':
                     right_point = self.data_scaled.iloc[right_child]
-                    m_right = pd.DataFrame(np.zeros((self._maxValuesOfAttributes, self.data.columns.size)), columns=self.data.columns)
+                    m_right = empty_distribution.copy()
                     for j_column in range(self._targetsLen):
                         att_value = right_point.values[j_column]
                         i_row = self._valuesOfAttributes[j_column].get(att_value)
@@ -367,20 +374,13 @@ class ExclusOptimiser:
         return cluster_ic
 
     def kl_categorical(self, distribution_cluster: np.ndarray, epsilon: float = 0.00001) -> np.ndarray:
-        # kl(p||q) = kl(prior||cluster)
-        # A simple interpretation of the KL divergence of P from Q is
-        # the expected excess surprise from using Q as a model instead of P
-        # when the actual distribution is P.
+        # kl(p||q) = kl(cluster||prior)
 
-        p = copy.copy(self._priors.values)
-        q = copy.copy(distribution_cluster)
+        p = copy.copy(distribution_cluster)
+        q = copy.copy(self._priors.values)
+        p_safe = np.where(p <= 0, epsilon, p)
 
-        q_safe = np.where(q == 0, np.finfo(float).eps, q)
-        p_over_q = p / q_safe
-        p_over_q = np.where(p_over_q <= 0, epsilon, p_over_q)
-
-        kl_mid_value = p * np.log(p_over_q)
-        # kl = np.array([np.sum(kl_mid_value[:dl, i]) for i, dl in enumerate(self._dls)])
+        kl_mid_value = p * np.log(p_safe/q)
         kl = np.sum(kl_mid_value, axis=0)
 
         return kl
@@ -663,7 +663,7 @@ class ExclusOptimiser:
                         if np.max(kl_nodeCluster) > np.max(kl_otherCluster):
 
                             scale_factor = np.max(kl_nodeCluster) / np.max(kl_otherCluster)
-                            self._samplesWeight = round(math.log(scale_factor)/math.log(otherInfo[1]/nodeInfo[1]))
+                            self._samplesWeight = round(math.log(scale_factor)/math.log(otherInfo[1]/nodeInfo[1]), 1)
 
                             ics.append((otherInfo[1] ** self._samplesWeight) * kl_otherCluster)
                             ics.append((nodeInfo[1] ** self._samplesWeight) * kl_nodeCluster)
@@ -671,7 +671,7 @@ class ExclusOptimiser:
                         elif np.max(kl_nodeCluster) < np.max(kl_otherCluster):
 
                             scale_factor = np.max(kl_otherCluster) / np.max(kl_nodeCluster)
-                            self._samplesWeight = round(math.log(scale_factor) / math.log(nodeInfo[1] / otherInfo[1]))
+                            self._samplesWeight = round(math.log(scale_factor) / math.log(nodeInfo[1] / otherInfo[1]), 1)
 
                             ics.append((otherInfo[1] ** self._samplesWeight) * kl_otherCluster)
                             ics.append((nodeInfo[1] ** self._samplesWeight) * kl_nodeCluster)
@@ -1296,3 +1296,4 @@ class ExclusOptimiser:
             adata.uns['ExClus'][f'cluster {cluster}']['ic'] = self._ic_opt[cluster]
         adata.obs['exclus-clustering'] = self._clustering_opt
         adata.write(file_name)
+        return adata
