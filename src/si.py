@@ -26,7 +26,7 @@ IfProfile = False
 
 IfLimitAtt = True
 linkages = ['ward', 'complete', 'average', 'single']
-linkage = linkages[3]
+linkage = linkages[2]
 
 def kl_gaussian(m1, s1, m2, s2, epsilon=0.00001):
     # kl(custer||prior)
@@ -97,7 +97,7 @@ class ExclusOptimiser:
         self.data_scaled = df_scaled
         self.embedding = embedding
         self._binaryTargetsLen = lenBinary
-        self._samplesWeight = None
+        self._samplesWeight = 1
         if self._binaryTargetsLen == None:
             self._allAttType = 'categorical'
             if self._allAttType == 'categorical':
@@ -218,11 +218,13 @@ class ExclusOptimiser:
         # initialize possible values of all attributes
         for column in self.data_scaled.columns:
 
-            possible_values = list(set(self.data_scaled[column]))
-            self._valuesOfAttributes.append({value: index for index, value in enumerate(possible_values)})
+            if self._binaryTargetsLen == None and self._allAttType == 'categorical':
 
-            if len(possible_values) > self._maxValuesOfAttributes:
-                self._maxValuesOfAttributes = len(possible_values)
+                possible_values = list(self.data_scaled[column].factorize()[1])
+                self._valuesOfAttributes.append({value: index for index, value in enumerate(possible_values)})
+
+                if len(possible_values) > self._maxValuesOfAttributes:
+                    self._maxValuesOfAttributes = len(possible_values)
 
         # build empty distribution
         if self._binaryTargetsLen == None:
@@ -657,24 +659,24 @@ class ExclusOptimiser:
                         if np.max(kl_nodeCluster) > np.max(kl_otherCluster):
 
                             scale_factor = np.max(kl_nodeCluster) / np.max(kl_otherCluster)
-                            self._samplesWeight = round(math.log(scale_factor)/math.log(otherInfo[1]/nodeInfo[1]), 1)
+                            self._samplesWeight = round(math.log(scale_factor)/math.log(otherInfo[2]/nodeInfo[2]), 1)
 
-                            ics.append((otherInfo[1] ** self._samplesWeight) * kl_otherCluster)
-                            ics.append((nodeInfo[1] ** self._samplesWeight) * kl_nodeCluster)
+                            ics.append((otherInfo[2] ** self._samplesWeight) * kl_otherCluster)
+                            ics.append((nodeInfo[2] ** self._samplesWeight) * kl_nodeCluster)
 
                         elif np.max(kl_nodeCluster) < np.max(kl_otherCluster):
 
                             scale_factor = np.max(kl_otherCluster) / np.max(kl_nodeCluster)
-                            self._samplesWeight = round(math.log(scale_factor) / math.log(nodeInfo[1] / otherInfo[1]), 1)
+                            self._samplesWeight = round(math.log(scale_factor) / math.log(nodeInfo[2] / otherInfo[2]), 1)
 
-                            ics.append((otherInfo[1] ** self._samplesWeight) * kl_otherCluster)
-                            ics.append((nodeInfo[1] ** self._samplesWeight) * kl_nodeCluster)
+                            ics.append((otherInfo[2] ** self._samplesWeight) * kl_otherCluster)
+                            ics.append((nodeInfo[2] ** self._samplesWeight) * kl_nodeCluster)
 
                         else:
                             self._samplesWeight = 1
 
-                            ics.append((otherInfo[1] ** self._samplesWeight) * kl_otherCluster)
-                            ics.append((nodeInfo[1] ** self._samplesWeight) * kl_nodeCluster)
+                            ics.append((otherInfo[2] ** self._samplesWeight) * kl_otherCluster)
+                            ics.append((nodeInfo[2] ** self._samplesWeight) * kl_nodeCluster)
 
                     else:
 
@@ -781,6 +783,7 @@ class ExclusOptimiser:
 
     def _iterate_levels(self):
 
+        self._samplesWeight = None
         self._clustering_opt = None  # indices
         self._split_nodes_opt = []  # splitted nodes and their classification label, tuple inside
         self._clusterlabel_max: int = 0  # maximum label, from 0
@@ -882,6 +885,7 @@ class ExclusOptimiser:
             self._clustering_opt = previously_calculated["clustering"]
             self._split_nodes_opt = previously_calculated["split"]
             self._clusterlabel_max = previously_calculated["maxlabel"]
+            self._binaryTargetsLen = previously_calculated["binary_att_length"]
             self._clustersRelatedInfo = previously_calculated["infor"]
             self._attributes_opt = previously_calculated["attributes"]
             self._priors = previously_calculated["prior"]
@@ -898,6 +902,7 @@ class ExclusOptimiser:
         previously_calculated = {"clustering": self._clustering_opt,
                                  "split": self._split_nodes_opt,
                                  "maxlabel": self._clusterlabel_max,
+                                 "binary_att_length": self._binaryTargetsLen,
                                  "infor": self._clustersRelatedInfo,
                                  "attributes": self._attributes_opt,
                                  "prior": self._priors,
@@ -1315,8 +1320,15 @@ class ExclusOptimiser:
         column_names = self.data.columns.tolist()
         # save ExClus information into .h5ad file
         adata.uns['ExClus'] = {}
-        means = self.data.mean()
-        stds = self.data.std()
+
+        try:
+            means = self.data.mean()
+            stds = self.data.std()
+        except TypeError:
+            self.data = self.data.apply(lambda col: pd.factorize(col)[0])
+            means = self.data.mean()
+            stds = self.data.std()
+
         data_prior = np.hstack((means.values.reshape(len(means),1),stds.values.reshape(len(stds),1)))
         prior = pd.DataFrame(data_prior,  index=column_names, columns=['mean', 'var'])
         adata.uns['ExClus'] = {'si': self._si_opt, 'total-ic': self._total_ic_opt, 'priors': prior}

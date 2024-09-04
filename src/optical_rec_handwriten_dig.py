@@ -32,12 +32,12 @@ print("done")
 EMB_NAME = 'tSNE_1'
 adata_file_path = f'C:/Users/Administrator/trace/data/{DATA_SET_NAME}/{DATA_SET_NAME}.h5ad'
 
-embedding = compute_embedding(df_data)
-nor_embedding = normalize_embedding(embedding)
-save_emb_adata(nor_embedding, EMB_NAME, adata_file_path)
+# embedding = compute_embedding(df_data)
+# nor_embedding = normalize_embedding(embedding)
+# save_emb_adata(nor_embedding, EMB_NAME, adata_file_path)
 
-alpha = 400
-beta = 1.2
+alpha = 500
+beta = 1.5
 min_att = 2
 max_att = 10
 runtime_id = 6

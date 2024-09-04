@@ -9,26 +9,23 @@ import os
 import mpld3
 
 from caching import from_cache
-from distributions import kde, bar
+from distributions import kde, bar, categorical
 from matplotlib.backends.backend_pdf import PdfPages
 
 kernels = ["gaussian", "tophat", "epanechnikov"]
 kernel = kernels[0]
-bandwidth=0.1
-testBandWidth = False
+
 
 def figures(data, labels, attributes,dls, ics, max_cluster, res_in_brief, output):
     figures = []
     dict = {'Creator': 'My software', 'Author': 'Me', 'Keywords': res_in_brief}
     op = PdfPages(output, metadata = dict)
-    if testBandWidth:
-        print(f'kernel: {kernel}')
-        bandwidth_c = float(input('\n bandwidth cluster (0.2 - ): '))
-        bandwidth_a = float(input('\n bandwidth all data (0.01 - 0.03): '))
+
     for cluster in range(max_cluster+1):
         cluster_data = data.iloc[np.nonzero(labels == cluster)[0], :]
         column_names = data.columns
         for attribute in attributes[cluster]:
+
             # DL = 2 so show to normal distributed curves (prior and cluster)
             if dls[attribute] == 2:
                 column_name = column_names[attribute]
@@ -45,9 +42,11 @@ def figures(data, labels, attributes,dls, ics, max_cluster, res_in_brief, output
                 min_a = min(np.std(a_data), iqr_a/1.34+0.00001)
                 bandwidth_c = 0.9 * min_c * c_data.shape[0] ** (-0.2)
                 bandwidth_a = 0.9 * min_a * a_data.shape[0] ** (-0.2)
+                bandwidth = max(bandwidth_a, bandwidth_c)
                 fig = kde(c_data, a_data, cluster, column_name,
-                          kernel, bandwidth_c, bandwidth_a)
+                          kernel, bandwidth, bandwidth)
                 fig.savefig(op, format='pdf')
+
             # DL = 1 and it is a binary attribute, so show 2 stacked bar plots (cluster and prior)
             else:
                 column_name = column_names[attribute]
@@ -58,9 +57,11 @@ def figures(data, labels, attributes,dls, ics, max_cluster, res_in_brief, output
                 att_label0 = [1-x for x in att_label1]
                 fig = bar(att_label1, att_label0, column_name, (label1, label0), cluster)
                 fig.savefig(op, format='pdf')
+
             figures.append(fig)
+
     op.close()
-    return figures
+
 
 def painting(work_folder, file_to_painting, data, output):
 
@@ -73,6 +74,15 @@ def painting(work_folder, file_to_painting, data, output):
     attributes = exclus_info['attributes']
     ics = exclus_info['ic']
     max_cluster = exclus_info['maxlabel']
+    binary_att_length = exclus_info['binary_att_length']
 
-    figures(data, clustering, attributes, dls, ics, max_cluster, res_in_brief, output)
+    if binary_att_length != None:
+        figures(data, clustering, attributes, dls, ics, max_cluster, res_in_brief, output)
+
+    else:
+
+        categorical(data, exclus_info['attributes'], exclus_info['infor'], exclus_info['prior'], exclus_info['res_in_brief'], output)
+
+
+
 

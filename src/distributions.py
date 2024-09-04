@@ -1,27 +1,24 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import matplotlib.cm as cm
 
 from sklearn.neighbors import KernelDensity
+from matplotlib.backends.backend_pdf import PdfPages
 
 
 def kde(cluster: np.ndarray, dataset: np.ndarray, cluster_label: int, attribute_n: str,
         kernel: str, bandwidth_c: float = 0.1, bandwidth_a: float = 0.1):
 
-    # min - max
-    min_x = int(min(min(cluster), min(dataset)))
-    max_x = int(max(max(cluster), max(dataset)))
+    min_x = min(min(cluster), min(dataset))[0]
+    max_x = max(max(cluster), max(dataset))[0]
     X_plot = np.linspace(min_x, max_x, 1000)[:, np.newaxis]
-    # # quantile
-    # min_x = min(np.percentile(cluster, 25), np.percentile(dataset, 25))
-    # max_x = max(np.percentile(cluster, 75), np.percentile(dataset, 75))
-    # iqr = max_x - min_x
-    # X_plot = np.linspace(min_x-iqr/4, max_x+iqr/4, 1000)[:, np.newaxis]
 
     fig, ax = plt.subplots()
     colors = ["darkorange", "navy", "cornflowerblue"]
-    datas = [cluster, dataset]
-    data_names = ['cluster', 'all data']
-    bandwidths = [bandwidth_c, bandwidth_a]
+    datas = [dataset, cluster]
+    data_names = ['Distribution of full data', 'Part covered by cluster',]
+    bandwidths = [bandwidth_a, bandwidth_c]
     lw = 2
 
     for color, data, data_name, bandwidth in zip(colors, datas, data_names, bandwidths):
@@ -30,29 +27,32 @@ def kde(cluster: np.ndarray, dataset: np.ndarray, cluster_label: int, attribute_
         log_dens = kde.score_samples(X_plot)
         ax.plot(
             X_plot[:, 0],
-            np.exp(log_dens),
+            (data.shape[0]/dataset.shape[0]) * np.exp(log_dens),
             color=color,
             lw=lw,
             linestyle="-",
             label="'{0}'".format(data_name),
         )
-    ax.legend(loc="upper left")
+        ax.fill_between(
+            X_plot[:, 0],
+            (data.shape[0]/dataset.shape[0]) * np.exp(log_dens),
+            color=color,  # 填充颜色与曲线相同
+            alpha=0.3  # 填充透明度
+        )
+    ax.plot(
+        X_plot[:, 0],
+        np.exp(kde.score_samples(X_plot)),
+        color=color,
+        lw=lw,
+        linestyle="--",
+        label='Distribution of cluster',
+    )
+    ax.legend(loc="best")
     ax.set_xlim(min_x, max_x)
     plt.title(f'cluster {cluster_label} - {attribute_n}')
     # plt.show()
 
     return plt
-
-
-# N = 100
-# X = np.concatenate(
-#     (np.random.normal(0, 1, int(0.3 * N)), np.random.normal(5, 1, int(0.7 * N)))
-# )[:, np.newaxis]
-# Y = np.concatenate(
-#     (np.random.normal(1, 3, int(0.3 * N)), np.random.normal(5, 2, int(0.7 * N)))
-# )[:, np.newaxis]
-# plt = kde(X, Y, 0, 'test')
-# plt.show()
 
 
 def bar(cluster, all_data, attribute_n, attribute_v, cluster_label):
@@ -75,11 +75,48 @@ def bar(cluster, all_data, attribute_n, attribute_v, cluster_label):
     return plt
 
 
-# att_v1 = (20, 40)
-# att_v2 = (80, 60)
-# attribute_n = 'gender'
-# attribute_v = ('male', 'female')
-#
-# bar(att_v1, att_v2, attribute_n, attribute_v, 0)
-# plt.show()
+def categorical(Data: pd.DataFrame, attributes_chosen: list, clusters_distribution: dict, all_data_distribution: pd.DataFrame, res_in_brief: str, output: str):
 
+    value_names_of_attributes = []
+    for col in Data.columns:
+        Data.loc[:, col] = Data[col].fillna('NaN')
+        value_names_of_attributes.append(Data[col].factorize()[1])
+
+    lens_of_attributes = [len(value_names) for value_names in value_names_of_attributes]
+    color_data = cm.get_cmap('tab20')(np.linspace(0, 1, max(lens_of_attributes)))
+
+    dict = {'Creator': 'My software', 'Author': 'Me', 'Keywords': res_in_brief}
+    op = PdfPages(output, metadata=dict)
+    for cluster_index, atts_cluster in enumerate(attributes_chosen):
+        for att in atts_cluster:
+
+            plt.figure()
+
+            count_bar = 2
+            ind = np.arange(count_bar)
+            width = 0.5
+            labels = ['cluster', 'all data']
+
+            len_att = lens_of_attributes[att]
+            dist_pre_cluster_att = clusters_distribution[cluster_index][0].iloc[:len_att, att]
+            dist_prior_per_att = all_data_distribution.iloc[:len_att, att]
+
+            # plot bars in stack manner
+            for value_index in range(len_att):
+
+                if value_index == 0:
+                    bottom_data = np.array([0, 0])
+                else:
+                    bottom_data = np.array([sum(dist_pre_cluster_att[:value_index]), sum(dist_prior_per_att[:value_index])])
+
+                plt.bar(labels, [dist_pre_cluster_att[value_index], dist_prior_per_att[value_index]],
+                        bottom = bottom_data, color= color_data[value_index], width=width,
+                        label = value_names_of_attributes[att][value_index])
+
+            plt.ylabel('Distribution')
+            plt.title(f'cluster {cluster_index} - points: {clusters_distribution[cluster_index][1]} - {clusters_distribution[cluster_index][0].columns[att]}')
+            plt.xticks(ind, labels)
+            plt.legend(loc = 'upper center')
+            plt.savefig(op, format='pdf')
+
+    op.close()

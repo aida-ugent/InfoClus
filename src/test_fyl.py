@@ -10,10 +10,10 @@ from utils import load_data, load_data_sample
 from static_visual import painting
 from caching import from_cache
 
-DATA_SET_NAME = 'immune'
+# DATA_SET_NAME = 'immune'
 # DATA_SET_NAME = 'uci_adult'
 # DATA_SET_NAME = 'german_socio_eco'
-# DATA_SET_NAME = 'cytometry_2500'
+DATA_SET_NAME = 'cytometry_2500'
 
 DATA_FOLDER = f'C:/Users/Administrator/OneDrive - UGent/Documents/Data/ExClus/{DATA_SET_NAME}'
 WORK_FOLDER = f'../data/{DATA_SET_NAME}'
@@ -26,11 +26,11 @@ adata = ad.read_h5ad(f'C:/Users/Administrator/trace/data/{DATA_SET_NAME}/{DATA_S
 df_data, df_data_scaled, lenBinary = load_data(path_to_data_file)
 print("done")
 
-alpha = 400
-beta = 1.8
+alpha = 150
+beta = 1.6
 min_att = 2
 max_att = 10
-runtime_id = 8
+runtime_id = 3
 
 if len(df_data.columns) < min_att:
     min_att = len(df_data.columns)
