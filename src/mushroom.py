@@ -16,7 +16,7 @@ X = mushroom.data.features
 y = mushroom.data.targets
 y = y.apply(lambda col: pd.factorize(col)[0])
 
-DATA_SET_NAME = 'mushroom'
+DATA_SET_NAME = 'mushroom_binary'
 DATA_FOLDER = f'C:/Users/Administrator/OneDrive - UGent/Documents/Data/ExClus/{DATA_SET_NAME}'
 WORK_FOLDER = f'../data/{DATA_SET_NAME}'
 DATA_FILE = f'{DATA_SET_NAME}.csv'
@@ -26,15 +26,15 @@ print("load data ... ", end='')
 df_data, df_data_scaled, lenBinary = load_data_single_type(X)
 print("done")
 
-EMB_NAME = 'tSNE_1'
+emb_NAME = 'tSNE_1'
 adata_file_path = f'C:/Users/Administrator/trace/data/{DATA_SET_NAME}/{DATA_SET_NAME}.h5ad'
 
 # embedding = compute_embedding(df_data)
 # nor_embedding = normalize_embedding(embedding)
 # save_emb_adata(nor_embedding, EMB_NAME, adata_file_path)
 
-alpha = 500
-beta = 1.5
+alpha = 800
+beta = 1.7
 min_att = 2
 max_att = 10
 runtime_id = 5
@@ -44,7 +44,7 @@ if len(df_data.columns) < min_att:
 
 adata = ad.read_h5ad(adata_file_path)
 for EMB_NAME in adata.obsm.keys():
-    if EMB_NAME == "tSNE_1":
+    if EMB_NAME == emb_NAME:
 
         embedding = adata.obsm.get(EMB_NAME)
 
@@ -53,7 +53,7 @@ for EMB_NAME in adata.obsm.keys():
                                     alpha=alpha, beta=beta, min_att=min_att, max_att=max_att, runtime_id=runtime_id, work_folder=WORK_FOLDER)
         adata = optimiser.save_adata(data_folder=f'C:/Users/Administrator/trace/data/{DATA_SET_NAME}')
         adata.obs['true_label'] = y.values
-        adata.obs[f'clustering-{alpha}-{beta}-tSNE_1'] = optimiser._clustering_opt
+        adata.obs[f'clustering-{alpha}-{beta}-{emb_NAME}'] = optimiser._clustering_opt
         adata.write(adata_file_path)
 
         if_continue = input('\n continue ExClus y/n: ')

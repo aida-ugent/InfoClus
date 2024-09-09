@@ -26,8 +26,8 @@ adata = ad.read_h5ad(f'C:/Users/Administrator/trace/data/{DATA_SET_NAME}/{DATA_S
 df_data, df_data_scaled, lenBinary = load_data(path_to_data_file)
 print("done")
 
-alpha = 150
-beta = 1.6
+alpha = 200
+beta = 1.4
 min_att = 2
 max_att = 10
 runtime_id = 3

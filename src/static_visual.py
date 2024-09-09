@@ -9,7 +9,7 @@ import os
 import mpld3
 
 from caching import from_cache
-from distributions import kde, bar, categorical
+from distributions import kde, bar, categorical,categorical1
 from matplotlib.backends.backend_pdf import PdfPages
 
 kernels = ["gaussian", "tophat", "epanechnikov"]
@@ -81,8 +81,9 @@ def painting(work_folder, file_to_painting, data, output):
 
     else:
 
-        categorical(data, exclus_info['attributes'], exclus_info['infor'], exclus_info['prior'], exclus_info['res_in_brief'], output)
-
+        # categorical(data, exclus_info['attributes'], exclus_info['infor'], exclus_info['prior'], exclus_info['res_in_brief'], output)
+        categorical1(data, exclus_info['attributes'], exclus_info['infor'], exclus_info['prior'],
+                    exclus_info['res_in_brief'], output)
 
 
 

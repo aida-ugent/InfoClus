@@ -120,3 +120,53 @@ def categorical(Data: pd.DataFrame, attributes_chosen: list, clusters_distributi
             plt.savefig(op, format='pdf')
 
     op.close()
+
+
+def categorical1(Data: pd.DataFrame, attributes_chosen: list, clusters_distribution: dict,
+                all_data_distribution: pd.DataFrame, res_in_brief: str, output: str):
+    value_names_of_attributes = []
+    for col in Data.columns:
+        Data.loc[:, col] = Data[col].fillna('NaN')
+        value_names_of_attributes.append(Data[col].factorize()[1])
+
+    lens_of_attributes = [len(value_names) for value_names in value_names_of_attributes]
+    color_data = cm.get_cmap('tab20')(np.linspace(0, 1, max(lens_of_attributes)))
+
+    dict = {'Creator': 'My software', 'Author': 'Me', 'Keywords': res_in_brief}
+    op = PdfPages(output, metadata=dict)
+    for cluster_index, atts_cluster in enumerate(attributes_chosen):
+        for att in atts_cluster:
+
+            plt.figure()
+
+            count_bar = 2
+            # ind = np.arange(count_bar)
+            width = 0.3
+            labels = value_names_of_attributes[att]
+            ind1 = np.arange(len(labels))
+            ind2 = [x + width for x in ind1]
+
+            len_att = lens_of_attributes[att]
+            # dist_pre_cluster_att = clusters_distribution[cluster_index][0].iloc[:len_att, att]
+            # dist_prior_per_att = all_data_distribution.iloc[:len_att, att]
+            dist_pre_cluster_att = pd.Series(clusters_distribution[cluster_index][0].iloc[:len_att, att].values, index=labels)
+            dist_prior_per_att = pd.Series(all_data_distribution.iloc[:len_att, att].values, index=labels)
+            sorted_dist_pre_cluster_att = dist_pre_cluster_att.sort_values(ascending=False)
+            sorted_dist_prior_per_att = dist_prior_per_att.loc[sorted_dist_pre_cluster_att.index]
+            sorted_labels = sorted_dist_pre_cluster_att.index
+
+            # plot bars in stack manner
+            plt.bar(ind1, sorted_dist_pre_cluster_att,
+                     color='orange', width=width, label='cluster')
+            plt.bar(ind2, sorted_dist_prior_per_att,
+                    color='skyblue', width=width, label='all data')
+
+
+            plt.ylabel('Distribution')
+            plt.title(
+                f'cluster {cluster_index} - points: {clusters_distribution[cluster_index][1]} - {clusters_distribution[cluster_index][0].columns[att]}')
+            plt.xticks(ind1, sorted_labels)
+            plt.legend(loc='best')
+            plt.savefig(op, format='pdf')
+
+    op.close()

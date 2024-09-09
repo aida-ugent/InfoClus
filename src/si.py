@@ -26,7 +26,8 @@ IfProfile = False
 
 IfLimitAtt = True
 linkages = ['ward', 'complete', 'average', 'single']
-linkage = linkages[2]
+linkage = linkages[3]
+sampleWeight = 1
 
 def kl_gaussian(m1, s1, m2, s2, epsilon=0.00001):
     # kl(custer||prior)
@@ -97,13 +98,13 @@ class ExclusOptimiser:
         self.data_scaled = df_scaled
         self.embedding = embedding
         self._binaryTargetsLen = lenBinary
-        self._samplesWeight = 1
+        self._samplesWeight = sampleWeight
         if self._binaryTargetsLen == None:
             self._allAttType = 'categorical'
             if self._allAttType == 'categorical':
                 self._valuesOfAttributes = []
                 self._maxValuesOfAttributes = 0
-                self._fixedDl = 5
+                self._fixedDl = 0
         self.model = model
         self.alpha = alpha
         self.beta = beta
@@ -783,7 +784,7 @@ class ExclusOptimiser:
 
     def _iterate_levels(self):
 
-        self._samplesWeight = None
+        self._samplesWeight = sampleWeight
         self._clustering_opt = None  # indices
         self._split_nodes_opt = []  # splitted nodes and their classification label, tuple inside
         self._clusterlabel_max: int = 0  # maximum label, from 0
