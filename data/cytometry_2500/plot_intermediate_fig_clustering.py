@@ -30,5 +30,3 @@ plt.gca().xaxis.set_ticks([])
 plt.gca().yaxis.set_ticks([])
 
 plt.savefig('clustering_cytometry.pdf')
-
-# --------------------------------labelled tSNE, Exclus clustering, part distribution show------------------------------
