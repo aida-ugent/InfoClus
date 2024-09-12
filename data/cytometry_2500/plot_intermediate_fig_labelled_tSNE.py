@@ -37,7 +37,7 @@ def concatenate_single_pdf_with_custom_positions_and_scales(pdf_path, positions,
     return final_pdf
 
 # PDF 文件路径
-pdf_path = "Binder1.pdf"
+pdf_path = "Binder1_labelled_tSNE.pdf"
 
 # 自定义每个 PDF 页面在新 PDF 中的位置 (x, y) 坐标
 positions = [

@@ -38,12 +38,12 @@ def concatenate_single_pdf_with_custom_positions_and_scales(pdf_path, positions,
     return final_pdf
 
 # PDF 文件路径
-pdf_path = "cytometry figure binder 2.pdf"
+pdf_path = "Binder2_clustering_related.pdf"
 
 # 自定义每个 PDF 页面在新 PDF 中的位置 (x, y) 坐标
 positions = [
-    (0, 0),         # 第一页的位置
-    (200, -28),     # 第二页的位置
+    (20, 0),         # 第一页的位置
+    (215, -28),     # 第二页的位置
     (0, 170),         # 第一页的位置
     (150, 170),
     (300, 170)
@@ -51,7 +51,7 @@ positions = [
 
 # 自定义每个页面的缩放比例 (scale_x, scale_y)
 scales = [
-    (0.48, 0.48),     # 第一页的缩放比例 (不缩放)
+    (0.47, 0.47),     # 第一页的缩放比例 (不缩放)
     (0.45, 0.45),     # 第二页缩小一半
     (0.3, 0.3),  # 第一页的缩放比例 (不缩放)
     (0.3, 0.3),
@@ -62,5 +62,5 @@ scales = [
 final_pdf = concatenate_single_pdf_with_custom_positions_and_scales(pdf_path, positions, scales)
 
 # 保存拼接后的 PDF
-final_pdf.save("cytometry figure 2.pdf")
+final_pdf.save("cytometry_figure2.pdf")
 final_pdf.close()
