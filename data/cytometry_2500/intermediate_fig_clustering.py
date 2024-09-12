@@ -29,4 +29,4 @@ plt.gca().spines['bottom'].set_visible(False)
 plt.gca().xaxis.set_ticks([])
 plt.gca().yaxis.set_ticks([])
 
-plt.savefig('clustering_cytometry.pdf')
+plt.savefig('intermediate_fig_clustering.pdf')

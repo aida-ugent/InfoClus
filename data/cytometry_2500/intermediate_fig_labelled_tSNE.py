@@ -55,5 +55,5 @@ scales = [
 final_pdf = concatenate_single_pdf_with_custom_positions_and_scales(pdf_path, positions, scales)
 
 # 保存拼接后的 PDF
-final_pdf.save("tsne labelled by cell types.pdf")
+final_pdf.save("intermediate_fig_labelled_tSNE.pdf")
 final_pdf.close()

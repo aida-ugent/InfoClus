@@ -62,5 +62,5 @@ scales = [
 final_pdf = concatenate_single_pdf_with_custom_positions_and_scales(pdf_path, positions, scales)
 
 # 保存拼接后的 PDF
-final_pdf.save("cytometry_figure2.pdf")
+final_pdf.save("cytometry_fig2_clusteringRelated.pdf")
 final_pdf.close()
