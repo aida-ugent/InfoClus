@@ -34,7 +34,7 @@ adata_file_path = f'C:/Users/Administrator/trace/data/{DATA_SET_NAME}/{DATA_SET_
 # nor_embedding = normalize_embedding(embedding)
 # save_emb_adata(nor_embedding, EMB_NAME, adata_file_path)
 
-alpha = 500
+alpha = 700
 beta = 1.5
 min_att = 2
 max_att = 10
