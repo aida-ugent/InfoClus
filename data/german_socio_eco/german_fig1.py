@@ -38,7 +38,7 @@ def concatenate_single_pdf_with_custom_positions_and_scales(pdf_path, positions,
     return final_pdf
 
 # PDF 文件路径
-pdf_path = "Binder1.pdf"
+pdf_path = "Binder.pdf"
 
 # # 自定义每个 PDF 页面在新 PDF 中的位置 (x, y) 坐标
 # positions = [
@@ -59,17 +59,19 @@ pdf_path = "Binder1.pdf"
 # ]
 
 positions = [
-    (20, 0),         # 第一页的位置
-    (215, -28),     # 第二页的位置
-    (0, 170),         # 第一页的位置
-    (150, 170),
-    (300, 170)
+    (0, 0),         # 第一页的位置
+    (150, 0),     # 第二页的位置
+    (300, 0),  # 第二页的位置
+    (0, 150),         # 第一页的位置
+    (150, 150),
+    (300, 150)
 ]
 
 # 自定义每个页面的缩放比例 (scale_x, scale_y)
 scales = [
-    (0.47, 0.47),     # 第一页的缩放比例 (不缩放)
-    (0.45, 0.45),     # 第二页缩小一半
+    (0.25, 0.25),     # 第一页的缩放比例 (不缩放)
+    (0.3, 0.3),
+    (0.3, 0.3),
     (0.3, 0.3),  # 第一页的缩放比例 (不缩放)
     (0.3, 0.3),
     (0.3, 0.3)
