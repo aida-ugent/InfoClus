@@ -45,7 +45,7 @@ plt.text(
 
 
 # 设置图例和标题
-plt.legend(bbox_to_anchor=(0.2, 1.05), fontsize = 'large')
+plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.08), ncol=3, fontsize = 'large', markerscale = 2)
 
 plt.gca().set_aspect('equal', adjustable='box')
 
@@ -114,7 +114,7 @@ plt.text(
 
 
 # 设置图例和标题
-plt.legend(bbox_to_anchor=(0.2, 1.05), fontsize = 'large')
+plt.legend(loc='upper center', bbox_to_anchor=(0.5, 1.08), ncol=3, fontsize = 'large', markerscale = 2)
 
 plt.gca().set_aspect('equal', adjustable='box')
 
@@ -129,8 +129,8 @@ plt.yticks([])
 
 
 textsize = 12
-index = np.where(names == 'Flensburg')[0][0]
-plt.text( points[index, 1],points[index, 0], names[index], fontsize=textsize, ha='center')
+# index = np.where(names == 'Flensburg')[0][0]
+# plt.text( points[index, 1],points[index, 0], names[index], fontsize=textsize, ha='center')
 index = np.where(names == 'Hamburg')[0][0]
 plt.text( points[index, 1],points[index, 0], names[index], fontsize=textsize, ha='right')
 index = np.where(names == 'Hannover')[0][0]

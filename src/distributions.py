@@ -8,7 +8,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 
 def kde(cluster: np.ndarray, dataset: np.ndarray, cluster_label: int, attribute_n: str,
-        kernel: str, bandwidth_c: float = 0.1, bandwidth_a: float = 0.1):
+        kernel: str, bandwidth_c: float = 0.1, bandwidth_a: float = 0.1, first: bool = False):
 
     min_x = min(min(cluster), min(dataset))[0]
     max_x = max(max(cluster), max(dataset))[0]
@@ -31,7 +31,7 @@ def kde(cluster: np.ndarray, dataset: np.ndarray, cluster_label: int, attribute_
             color=color,
             lw=lw,
             linestyle="-",
-            label="'{0}'".format(data_name),
+            label="{0}".format(data_name),
         )
         ax.fill_between(
             X_plot[:, 0],
@@ -47,9 +47,10 @@ def kde(cluster: np.ndarray, dataset: np.ndarray, cluster_label: int, attribute_
         linestyle="--",
         label='Distribution of cluster',
     )
-    ax.legend(loc="best")
+    if first:
+        ax.legend(loc="best", fontsize = 12)
     ax.set_xlim(min_x, max_x)
-    plt.title(f'cluster {cluster_label} - {attribute_n}')
+    plt.title(f'cluster {cluster_label} - {attribute_n}', fontsize = 20)
     # plt.show()
 
     return plt

@@ -11,6 +11,7 @@ import mpld3
 from caching import from_cache
 from distributions import kde, bar, categorical,categorical1
 from matplotlib.backends.backend_pdf import PdfPages
+from pypdf import PdfReader, PdfWriter
 
 kernels = ["gaussian", "tophat", "epanechnikov"]
 kernel = kernels[0]
@@ -21,6 +22,7 @@ def figures(data, labels, attributes,dls, ics, max_cluster, res_in_brief, output
     dict = {'Creator': 'My software', 'Author': 'Me', 'Keywords': res_in_brief}
     op = PdfPages(output, metadata = dict)
 
+    first = True
     for cluster in range(max_cluster+1):
         cluster_data = data.iloc[np.nonzero(labels == cluster)[0], :]
         column_names = data.columns
@@ -44,7 +46,8 @@ def figures(data, labels, attributes,dls, ics, max_cluster, res_in_brief, output
                 bandwidth_a = 0.9 * min_a * a_data.shape[0] ** (-0.2)
                 bandwidth = max(bandwidth_a, bandwidth_c)
                 fig = kde(c_data, a_data, cluster, column_name,
-                          kernel, bandwidth, bandwidth)
+                          kernel, bandwidth, bandwidth, first)
+                first = False
                 fig.savefig(op, format='pdf')
 
             # DL = 1 and it is a binary attribute, so show 2 stacked bar plots (cluster and prior)
@@ -61,7 +64,6 @@ def figures(data, labels, attributes,dls, ics, max_cluster, res_in_brief, output
             figures.append(fig)
 
     op.close()
-
 
 def painting(work_folder, file_to_painting, data, output):
 
