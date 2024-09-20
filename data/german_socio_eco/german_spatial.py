@@ -25,8 +25,8 @@ category_2_idx = np.where(categories == 2)
 
 size = 7
 plt.scatter(points[categories == 0, 1], points[categories == 0, 0], color='red', label='Cluster 0', s=size)
-plt.scatter(points[categories == 1, 1], points[categories == 1, 0], color='blue', alpha=0.4, label='Cluster 1', s=size)
-plt.scatter(points[categories == 2, 1], points[categories == 2, 0], color='green', alpha=0.4, label='Cluster 2', s=size)
+plt.scatter(points[categories == 1, 1], points[categories == 1, 0], color='#66c2a5', alpha=0.4, label='Cluster 1', s=size)
+plt.scatter(points[categories == 2, 1], points[categories == 2, 0], color='blue', alpha=0.2, label='Cluster 2', s=size)
 
 xlim = plt.gca().get_xlim()
 ylim = plt.gca().get_ylim()
@@ -45,7 +45,7 @@ plt.text(
 
 
 # 设置图例和标题
-plt.legend(loc = 'best', fontsize='small')
+plt.legend(bbox_to_anchor=(0.2, 1.05), fontsize = 'large')
 
 plt.gca().set_aspect('equal', adjustable='box')
 
@@ -59,7 +59,7 @@ plt.xticks([])
 plt.yticks([])
 
 
-textsize = 8
+textsize = 12
 # index = np.where(names == 'Wesermarsch')
 # plt.text( points[index, 1],points[index, 0], names[index], fontsize=textsize, ha='right')
 index = np.where(names == 'Brandenburg an der Havel')[0][0]
@@ -72,20 +72,30 @@ index = np.where(names == 'Stralsund')[0][0]
 plt.text( points[index, 1],points[index, 0], names[index], fontsize=textsize, ha='right')
 index = np.where(names == 'Uecker-Randow')[0][0]
 plt.text( points[index, 1],points[index, 0], names[index], fontsize=textsize, ha='right')
-count = 0
-for i in category_0_idx[0]:
-    plt.text( points[i, 1],points[i, 0], names[i], fontsize=textsize, ha='right')
-    count += 1
-    if count > 4:
-        break
+index = np.where(names == 'Wesermarsch')[0][0]
+plt.text( points[index, 1],points[index, 0], names[index], fontsize=textsize, ha='right')
+index = np.where(names == 'Pirmasens')[0][0]
+plt.text( points[index, 1],points[index, 0], names[index], fontsize=textsize, ha='right')
+index = np.where(names == 'Heilbronn')[0][0]
+plt.text( points[index, 1],points[index, 0], names[index], fontsize=textsize, ha='center')
+index = np.where(names == 'Garmisch-Partenkirchen')[0][0]
+plt.text( points[index, 1],points[index, 0], names[index], fontsize=textsize, ha='right')
+index = np.where(names == 'Berchtesgadener Land')[0][0]
+plt.text( points[index, 1],points[index, 0], names[index], fontsize=textsize, ha='right')
+# count = 0
+# for i in category_0_idx[0]:
+#     plt.text( points[i, 1],points[i, 0], names[i], fontsize=textsize, ha='right')
+#     count += 1
+#     if count > 4:
+#         break
 plt.savefig('german_spatial_c0.pdf')
 
 ####################################################### cluster 2 urban #####################################################
 plt.figure()
 size = 7
-plt.scatter(points[categories == 0, 1], points[categories == 0, 0], color='red',alpha=0.4, label='Cluster 0', s=size)
-plt.scatter(points[categories == 1, 1], points[categories == 1, 0], color='blue', alpha=0.4, label='Cluster 1', s=size)
-plt.scatter(points[categories == 2, 1], points[categories == 2, 0], color='green', label='Cluster 2', s=size)
+plt.scatter(points[categories == 0, 1], points[categories == 0, 0], color='red',alpha=0.2, label='Cluster 0', s=size)
+plt.scatter(points[categories == 1, 1], points[categories == 1, 0], color='#66c2a5', alpha=0.4, label='Cluster 1', s=size)
+plt.scatter(points[categories == 2, 1], points[categories == 2, 0], color='blue', label='Cluster 2',alpha=0.7, s=size)
 
 xlim = plt.gca().get_xlim()
 ylim = plt.gca().get_ylim()
@@ -104,7 +114,7 @@ plt.text(
 
 
 # 设置图例和标题
-plt.legend(loc = 'best', fontsize='small')
+plt.legend(bbox_to_anchor=(0.2, 1.05), fontsize = 'large')
 
 plt.gca().set_aspect('equal', adjustable='box')
 
@@ -118,9 +128,9 @@ plt.xticks([])
 plt.yticks([])
 
 
-textsize = 8
+textsize = 12
 index = np.where(names == 'Flensburg')[0][0]
-plt.text( points[index, 1],points[index, 0], names[index], fontsize=textsize, ha='right')
+plt.text( points[index, 1],points[index, 0], names[index], fontsize=textsize, ha='center')
 index = np.where(names == 'Hamburg')[0][0]
 plt.text( points[index, 1],points[index, 0], names[index], fontsize=textsize, ha='right')
 index = np.where(names == 'Hannover')[0][0]
@@ -143,16 +153,16 @@ index = np.where(names == 'Berlin. Stadtstaat')[0][0]
 plt.text( points[index, 1],points[index, 0], names[index], fontsize=textsize, ha='right')
 index = np.where(names == 'Leverkusen')[0][0]
 plt.text( points[index, 1],points[index, 0], names[index], fontsize=textsize, ha='right')
-index = np.where(names == 'Wuppertal')[0][0]
-plt.text( points[index, 1],points[index, 0], names[index], fontsize=textsize, ha='right')
+# index = np.where(names == 'Wuppertal')[0][0]
+# plt.text( points[index, 1],points[index, 0], names[index], fontsize=textsize, ha='right')
 index = np.where(names == 'Gelsenkirchen')[0][0]
 plt.text( points[index, 1],points[index, 0], names[index], fontsize=textsize, ha='right')
-count = 0
-for i in category_2_idx[0]:
-    plt.text( points[i, 1],points[i, 0], names[i], fontsize=textsize, ha='right')
-    count += 1
-    if count > 2:
-        break
+# count = 0
+# for i in category_2_idx[0]:
+#     plt.text( points[i, 1],points[i, 0], names[i], fontsize=textsize, ha='right')
+#     count += 1
+#     if count > 2:
+#         break
 plt.savefig('german_spatial_c2.pdf')
 
 

@@ -16,11 +16,12 @@ clustering = exclus_info["clustering"]
 plt.figure(figsize=(8, 6))
 unique_classes = np.unique(clustering)
 
+colors = ['red', 'green', 'blue']
 for cls in unique_classes:
     indices = np.where(clustering == cls)
-    plt.scatter(embedding[indices, 0], embedding[indices, 1], label=f'Cluster {cls}')
+    plt.scatter(embedding[indices, 0], embedding[indices, 1], label=f'Cluster {cls}', alpha=0.7, color = colors[cls], s=7)
 
-plt.legend(loc='upper center', bbox_to_anchor=(0.5, 0), ncol=len(unique_classes))
+plt.legend(ncol=len(unique_classes), fontsize = 'x-large', markerscale=2)
 
 plt.gca().spines['top'].set_visible(False)
 plt.gca().spines['right'].set_visible(False)
