@@ -71,8 +71,8 @@ index = np.where(names == 'Heilbronn')[0][0]
 plt.text( points[index, 1],points[index, 0], names[index], fontsize=textsize, ha='left')
 index = np.where(names == 'Garmisch-Partenkirchen')[0][0]
 plt.text( points[index, 1],points[index, 0], names[index], fontsize=textsize, ha='center')
-index = np.where(names == 'Berchtesgadener Land')[0][0]
-plt.text( points[index, 1],points[index, 0], names[index], fontsize=textsize, ha='center')
+# index = np.where(names == 'Berchtesgadener Land')[0][0]
+# plt.text( points[index, 1],points[index, 0], names[index], fontsize=textsize, ha='center')
 plt.savefig('german_spatial_c0.pdf', bbox_inches='tight', pad_inches=0)
 
 ####################################################### cluster 2 urban #####################################################

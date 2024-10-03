@@ -50,7 +50,7 @@ def kde(cluster: np.ndarray, dataset: np.ndarray, cluster_label: int, attribute_
     if first:
         ax.legend(loc="best", fontsize = 12)
     ax.set_xlim(min_x, max_x)
-    plt.title(f'cluster {cluster_label} - {attribute_n}', fontsize = 20)
+    plt.title(f'Cluster {cluster_label} - {attribute_n}', fontsize = 20)
     # plt.show()
 
     return plt
@@ -135,6 +135,7 @@ def categorical1(Data: pd.DataFrame, attributes_chosen: list, clusters_distribut
 
     dict = {'Creator': 'My software', 'Author': 'Me', 'Keywords': res_in_brief}
     op = PdfPages(output, metadata=dict)
+    legend = True
     for cluster_index, atts_cluster in enumerate(attributes_chosen):
         for att in atts_cluster:
 
@@ -165,9 +166,48 @@ def categorical1(Data: pd.DataFrame, attributes_chosen: list, clusters_distribut
 
             plt.ylabel('Distribution')
             plt.title(
-                f'cluster {cluster_index} - points: {clusters_distribution[cluster_index][1]} - {clusters_distribution[cluster_index][0].columns[att]}')
-            plt.xticks(ind1, sorted_labels)
-            plt.legend(loc='best')
+                f'Cluster {cluster_index} - {clusters_distribution[cluster_index][0].columns[att]}', fontsize = 20)
+
+            sorted_reallabels = true_labels(sorted_labels, clusters_distribution[cluster_index][0].columns[att])
+            plt.xticks(ind1, sorted_reallabels, rotation=20, fontsize = 12)
+            if legend:
+                plt.legend(loc='best', fontsize = 12)
+            legend = False
             plt.savefig(op, format='pdf')
 
     op.close()
+
+def true_labels(abbreviate_labels: pd.Index, attribute_name: str):
+
+    # import sys
+    # sys.path.insert(1, '../data/mushroom_binary')
+
+    with open('names.txt', 'r') as file:
+        # Read all rows line by line
+        rows = file.readlines()
+            # Process each row (strip removes extra spaces and newlines)
+
+    label_dict = {}
+    for row in rows:
+        row = row[:-1]
+        row = row.split(':')
+        att = row[0]
+        labels = row[1].split(',')
+        Dict = {}
+        for label in labels:
+            abbreF = label.split('=')[0]
+            abbreT = label.split('=')[1]
+            Dict[abbreT] = abbreF
+        label_dict[att] = Dict
+
+    true_labels = []
+    att_abbre = label_dict[attribute_name]
+    for abbreviate_label in abbreviate_labels:
+        if abbreviate_label in att_abbre:
+            true_labels.append(att_abbre.get(abbreviate_label))
+        else:
+            true_labels.append('missing')
+    # Create an index where the key is the item and the value is the position in the list
+    true_labels = {item: idx for idx, item in enumerate(true_labels)}
+
+    return true_labels

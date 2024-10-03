@@ -26,11 +26,11 @@ adata = ad.read_h5ad(f'C:/Users/Administrator/trace/data/{DATA_SET_NAME}/{DATA_S
 df_data, df_data_scaled, lenBinary = load_data(path_to_data_file)
 print("done")
 
-alpha = 700
-beta = 1.5
+alpha = 150
+beta = 1.4
 min_att = 2
 max_att = 10
-runtime_id = 4
+runtime_id = 5
 
 if len(df_data.columns) < min_att:
     min_att = len(df_data.columns)

@@ -11,7 +11,7 @@ from pypdf import PdfReader, PdfWriter
 adata = ad.read_h5ad(f'C:/Users/Administrator/trace/data/cytometry_2500/cytometry_2500.h5ad')
 embedding = adata.obsm.get('tSNE_1')
 
-exclus_info = from_cache('cytometry_2500-tSNE_1-single-700-1.5-2-10-0-0')
+exclus_info = from_cache('cytometry_2500-tSNE_1-single-150-1.4-2-5-0-0')
 clustering = exclus_info["clustering"]
 
 plt.figure(figsize=(8, 6))
@@ -35,17 +35,23 @@ plt.savefig('intermediate_fig_clustering.pdf', bbox_inches='tight', pad_inches=0
 ############################## top attributes ###############################################
 
 writer = PdfWriter()
-reader = PdfReader('cytometry_2500-tSNE_1-single-700-1.5-2-10-0-0.pdf')
+reader = PdfReader('cytometry_2500-tSNE_1-single-150-1.4-2-5-0-0.pdf')
 page = reader.pages[0]
 writer.add_page(page)
-page = reader.pages[2]
+page = reader.pages[3]
 writer.add_page(page)
 page = reader.pages[7]
 writer.add_page(page)
-page = reader.pages[12]
-writer.add_page(page)
-page = reader.pages[16]
-writer.add_page(page)
+# page = reader.pages[0]
+# writer.add_page(page)
+# page = reader.pages[2]
+# writer.add_page(page)
+# page = reader.pages[7]
+# writer.add_page(page)
+# page = reader.pages[12]
+# writer.add_page(page)
+# page = reader.pages[16]
+# writer.add_page(page)
 with open('cytometry_top_attributes.pdf', 'wb') as output_pdf:
     writer.write(output_pdf)
 
@@ -79,10 +85,10 @@ page = reader.pages[1]
 writer.add_page(page)
 page = reader.pages[2]
 writer.add_page(page)
-page = reader.pages[3]
-writer.add_page(page)
-page = reader.pages[4]
-writer.add_page(page)
+# page = reader.pages[3]
+# writer.add_page(page)
+# page = reader.pages[4]
+# writer.add_page(page)
 
 with open('cytometry_Binder_2.pdf', 'wb') as output_pdf:
     writer.write(output_pdf)
