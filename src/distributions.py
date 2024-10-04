@@ -47,9 +47,15 @@ def kde(cluster: np.ndarray, dataset: np.ndarray, cluster_label: int, attribute_
         linestyle="--",
         label='Distribution of cluster',
     )
-    if first:
-        ax.legend(loc="best", fontsize = 12)
+
+    if first and cluster_label == 1:
+        ax.legend(loc="best", fontsize = 15)
     ax.set_xlim(min_x, max_x)
+    ax.set_ylim(bottom=0)
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    ax.tick_params(axis='both', which='major', labelsize=15)
+
     plt.title(f'Cluster {cluster_label} - {attribute_n}', fontsize = 20)
     # plt.show()
 
@@ -125,6 +131,9 @@ def categorical(Data: pd.DataFrame, attributes_chosen: list, clusters_distributi
 
 def categorical1(Data: pd.DataFrame, attributes_chosen: list, clusters_distribution: dict,
                 all_data_distribution: pd.DataFrame, res_in_brief: str, output: str):
+
+    # from matplotlib import colormaps
+
     value_names_of_attributes = []
     for col in Data.columns:
         Data.loc[:, col] = Data[col].fillna('NaN')
@@ -137,6 +146,8 @@ def categorical1(Data: pd.DataFrame, attributes_chosen: list, clusters_distribut
     op = PdfPages(output, metadata=dict)
     legend = True
     for cluster_index, atts_cluster in enumerate(attributes_chosen):
+        cmap = plt.get_cmap('tab10')
+        color_cluster = cmap.colors[cluster_index]
         for att in atts_cluster:
 
             plt.figure()
@@ -159,21 +170,27 @@ def categorical1(Data: pd.DataFrame, attributes_chosen: list, clusters_distribut
 
             # plot bars in stack manner
             plt.bar(ind1, sorted_dist_pre_cluster_att,
-                     color='orange', width=width, label='cluster')
+                     color=color_cluster, width=width, label=f'cluster {cluster_index}')
             plt.bar(ind2, sorted_dist_prior_per_att,
-                    color='skyblue', width=width, label='all data')
+                    color='darkgray', width=width, label='all data')
 
+            ax = plt.gca()
+            ax.spines['right'].set_visible(False)
+            ax.spines['top'].set_visible(False)
+            ax.tick_params(axis='both', which='major', labelsize=15)
 
-            plt.ylabel('Distribution')
-            plt.title(
-                f'Cluster {cluster_index} - {clusters_distribution[cluster_index][0].columns[att]}', fontsize = 20)
+            plt.ylabel('Distribution', fontsize=15)
+            plt.xlabel(clusters_distribution[cluster_index][0].columns[att], fontsize=15)
+            # plt.title(
+            #     f'Cluster {cluster_index} - {clusters_distribution[cluster_index][0].columns[att]}', fontsize = 20)
 
             sorted_reallabels = true_labels(sorted_labels, clusters_distribution[cluster_index][0].columns[att])
-            plt.xticks(ind1, sorted_reallabels, rotation=20, fontsize = 12)
+            plt.xticks(ind1, sorted_reallabels, rotation=40, fontsize = 15)
             if legend:
-                plt.legend(loc='best', fontsize = 12)
-            legend = False
-            plt.savefig(op, format='pdf')
+                plt.legend(loc='best', fontsize = 15)
+            # legend = False
+            plt.tight_layout()
+            plt.savefig(op, format='pdf', bbox_inches='tight')
 
     op.close()
 

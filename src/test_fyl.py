@@ -30,7 +30,7 @@ alpha = 150
 beta = 1.4
 min_att = 2
 max_att = 10
-runtime_id = 5
+runtime_id = 3
 
 if len(df_data.columns) < min_att:
     min_att = len(df_data.columns)

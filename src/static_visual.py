@@ -47,7 +47,8 @@ def figures(data, labels, attributes,dls, ics, max_cluster, res_in_brief, output
                 bandwidth = max(bandwidth_a, bandwidth_c)
                 fig = kde(c_data, a_data, cluster, column_name,
                           kernel, bandwidth, bandwidth, first)
-                first = False
+                if cluster == 1:
+                    first = False
                 fig.savefig(op, format='pdf')
 
             # DL = 1 and it is a binary attribute, so show 2 stacked bar plots (cluster and prior)
@@ -62,7 +63,6 @@ def figures(data, labels, attributes,dls, ics, max_cluster, res_in_brief, output
                 fig.savefig(op, format='pdf')
 
             figures.append(fig)
-
     op.close()
 
 def painting(work_folder, file_to_painting, data, output):
