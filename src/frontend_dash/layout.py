@@ -2,7 +2,9 @@ import dash_bootstrap_components as dbc
 from dash import html
 import dash_core_components as dcc
 
-def get_scatter_plot():
+from charts import config_scatter_graph, config_explanation
+
+def get_scatter_graph():
     """
     This function plots the clustering of  points in embedding space.
     :return:
@@ -127,7 +129,7 @@ def config_layout():
                                         dbc.CardBody(
                                             [
                                                 html.H5(children=dataset_name, className="card-title"),
-                                                get_scatter_plot(),
+                                                config_scatter_graph(),
                                             ]
                                         )
                                     ),
@@ -159,7 +161,7 @@ def config_layout():
                                                     ],
                                                     value=0
                                                 ),
-                                                html.Div(get_explanation(), id="explanation", style=SIDEBAR_STYLE)
+                                                html.Div(config_explanation(), id="explanation", style=SIDEBAR_STYLE)
                                             ]
                                         ),
                                     )
