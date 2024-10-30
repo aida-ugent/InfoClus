@@ -2,6 +2,8 @@ import plotly.express as px
 import numpy as np
 import pandas as pd
 import dash_bootstrap_components as dbc
+import plotly.graph_objects as go
+from scipy.stats import gaussian_kde
 
 from dash import dcc
 from dash import html
@@ -34,17 +36,49 @@ def config_scatter_graph(results_file: str = 'german_socio_eco-tSNE_1-single-50-
     return graph
 
 
-def get_distribution(results_file: str, attribute, cluster):
+def get_kde(cluster_att: np.ndarray, data_att: np.ndarray, att_name: str):
     """
-    :return: return distribution (kde/barplot) of given parameters
+    :return: return kernal desity estimation of one attribute for a cluster
     """
 
-    # data
-    full_data = data.jloc[attribute]
-    cluster_data = data.iloc[cluster, attribute]
+    kde_data = gaussian_kde(data_att)
+    kde_cluster = gaussian_kde(cluster_att)
 
+    x_vals = np.linspace(min(data_att), max(data_att), 1000)
+    kde_data_vals = kde_data(x_vals)
+    kde_cluster_vals = kde_cluster(x_vals)
+
+    cluster_proportion = len(cluster_att) / len(data_att)
+    overlap_density = kde_cluster_vals * cluster_proportion
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=x_vals, y=kde_data_vals, mode='lines', name='Full Data Density',
+                             line=dict(color='blue', width=2)))
+    fig.add_trace(go.Scatter(x=x_vals, y=kde_cluster_vals, mode='lines', name='Cluster Density',
+                             line=dict(color='green', width=2, dash='dot')))
+    fig.add_trace(go.Scatter(x=x_vals, y=overlap_density, fill='tozeroy', name='Overlap by Cluster',
+                             line=dict(color='orange', width=2)))
+    fig.update_layout(title=f"Density Distributions of {att_name}",
+                      xaxis_title="Value",
+                      yaxis_title="Densities",
+                      showlegend=True)
+
+    return fig
+
+def get_kdes(data: np.ndarray,
+             cluster_label: int, clustering: np.ndarray, attributes: list,
+             att_names: pd.DataFrame):
+    """
+
+    :param data:
+    :param cluster_label:
+    :param clustering:
+    :param attributes:
+    :param att_names:
+    :return: list of go.Figure objects that show the kde plots of cluster with label cluster_label
+    """
+    # todo: finish this function first, then get a dash webpage asap
     pass
-
 
 def config_explanation(results_file: str = "german_socio_eco-tSNE_1-single-50-1.5-2-5-0-0", cluster: int = 0):
     """

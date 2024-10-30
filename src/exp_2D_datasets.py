@@ -258,7 +258,6 @@ for i_dataset, (dataset, algo_params) in enumerate(datasets):
         )
         plot_num += 1
 
-    # todo: call ExClus, both init and optimise
     t0 = time.time()
     column_names = ['Column1', 'Column2']
     df = pd.DataFrame(X, columns=column_names)
