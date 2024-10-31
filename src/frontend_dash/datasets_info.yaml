@@ -1,0 +1,6 @@
+datasets:
+  - name: "german_socio_eco"
+    path: german_socio_eco.h5ad
+
+embeddings:
+  method: "tSNE_1"

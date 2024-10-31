@@ -29,16 +29,17 @@ attsClus = infoclus['attributes']
 icsClus = infoclus['ic']
 
 adata.obs['infoclus_clustering'] = clustering
-adata.uns['ExClus'] = {}
-adata.uns['ExClus']['si'] = si
+adata.uns['InfoClus'] = {}
+adata.uns['InfoClus']['si'] = si
+adata.uns['InfoClus']['main_emb'] = 'tSNE_1'
 for cluster in range(maxClusLabel+1):
     # todo: decide whether to store statitics based on raw data instead of scaled data
-    adata.uns['ExClus'][f'cluster_{cluster}'] = {}
-    adata.uns['ExClus'][f'cluster_{cluster}']['mean'] = stasClus[cluster][0]
-    adata.uns['ExClus'][f'cluster_{cluster}']['var'] = stasClus[cluster][1]
-    adata.uns['ExClus'][f'cluster_{cluster}']['count'] = stasClus[cluster][2]
-    adata.uns['ExClus'][f'cluster_{cluster}']['ic'] = np.array(icsClus[cluster])
-    adata.uns['ExClus'][f'cluster_{cluster}']['attributes'] = attsClus[cluster]
+    adata.uns['InfoClus'][f'cluster_{cluster}'] = {}
+    adata.uns['InfoClus'][f'cluster_{cluster}']['mean'] = stasClus[cluster][0]
+    adata.uns['InfoClus'][f'cluster_{cluster}']['var'] = stasClus[cluster][1]
+    adata.uns['InfoClus'][f'cluster_{cluster}']['count'] = stasClus[cluster][2]
+    adata.uns['InfoClus'][f'cluster_{cluster}']['ic'] = np.array(icsClus[cluster])
+    adata.uns['InfoClus'][f'cluster_{cluster}']['attributes'] = attsClus[cluster]
 
 adata.var['prior_mean'] = stasPrior[:,0]
 adata.var['prior_var'] = stasPrior[:,1]

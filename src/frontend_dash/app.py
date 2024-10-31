@@ -3,6 +3,7 @@ from dash import html
 import dash_bootstrap_components as dbc
 
 from layout import config_layout
+from callbacks import register_callbacks
 
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -15,4 +16,7 @@ for url in my_css_urls:
     })
 
 app.layout = html.Div(config_layout())
+register_callbacks(app)
+
+# todo: store ExclusOptimiser objects to somewhere, maybe datasets_info or not, to accelerate Dash App callback (low priority)
 
