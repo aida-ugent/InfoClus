@@ -8,6 +8,8 @@ from typing import Union
 from sklearn.manifold import TSNE
 
 
+# Todo: remove the so many versions of load_data, put sample or not as parameter, remove lenBinary
+# Todo: generate another readable variable to replace  lenbinary
 def load_data(file: Union[str, pd.DataFrame]):
     # load all data, and reorder the columns of the data according to the attributes
     #     :return data and counts of binary attributes

@@ -45,5 +45,5 @@ adata.var['prior_mean'] = stasPrior[:,0]
 adata.var['prior_var'] = stasPrior[:,1]
 adata.var['feature_type'] = featureType
 
-adata.write(f'C:/Users/Administrator/trace/data/{DATA_SET_NAME}/{DATA_SET_NAME}.h5ad')
+adata.write(f'C:/Users/Administrator/OneDrive - UGent/Documents/GitHub/ExClus/src/frontend_dash/german_socio_eco.h5ad')
 

@@ -6,16 +6,18 @@ import plotly.graph_objects as go
 import yaml
 import anndata as ad
 from scipy.stats import gaussian_kde
+from sklearn.neighbors import KernelDensity
 
 from dash import dcc
 from dash import html
-from ..caching import from_cache
+from src.caching import from_cache
 
 RUNTIME_MARKERS = ["0.01s", "0.5s", "1s", "5s", "10s", "30s", "1m","3m", "5m", "10m", "30m", "1h", "full"]
 
 SIDEBAR_STYLE = {
     "overflow-y": "scroll",
-    "height": "680px"
+    "height": "800px"
+    # "width": "fit-content"
 }
 
 
@@ -24,6 +26,7 @@ def get_kde(data_att: np.ndarray, cluster_att: np.ndarray, att_name: str):
     :return: return kernal desity estimation of one attribute for a cluster
     """
 
+    # todo: check kde distribution, something wrong, especially overlap density
     kde_data = gaussian_kde(data_att)
     kde_cluster = gaussian_kde(cluster_att)
 
@@ -40,26 +43,38 @@ def get_kde(data_att: np.ndarray, cluster_att: np.ndarray, att_name: str):
     fig.add_trace(go.Scatter(x=x_vals, y=kde_cluster_vals, mode='lines', name='Cluster Density',
                              line=dict(color='green', width=2, dash='dot')))
     fig.add_trace(go.Scatter(x=x_vals, y=overlap_density, fill='tozeroy', name='Overlap by Cluster',
-                             line=dict(color='orange', width=2)))
-    fig.update_layout(title=f"Density Distributions of {att_name}",
-                      xaxis_title="Value",
+                             line=dict(color='orange', width=1)))
+    fig.update_layout(xaxis_title="Value",
                       yaxis_title="Densities",
-                      showlegend=True)
+                      showlegend=True,
+                      width=600,  # Set the figure width in pixels
+                      height=400
+                      )
+
+    return fig
+
+
+def get_scatter(clustering: np.ndarray, embedding: np.ndarray):
+    df = pd.DataFrame({
+        'x': embedding[:, 0],  # X coordinates
+        'y': embedding[:, 1],  # Y coordinates
+        'class': pd.Categorical(clustering)  # Classifications
+    })
+    # todo: illustrate main embedding used for clustering computation
+    fig = px.scatter(df, x='x', y='y', color='class', title='clustering')
+    fig.update_layout(
+        width=810,
+        height=540
+    )
 
     return fig
 
 
 def config_scatter_graph(clustering: np.ndarray, embedding: np.ndarray):
 
-    df = pd.DataFrame({
-        'x': embedding[:, 0],  # X coordinates
-        'y': embedding[:, 1],  # Y coordinates
-        'class': clustering  # Classifications
-    })
-
     graph = dcc.Graph(
         id="embedding-scatterPlot",
-        figure=px.scatter(df, x='x', y='y', color='class', title='clustering')
+        figure=get_scatter(clustering, embedding)
     )
 
     return graph
@@ -71,10 +86,10 @@ def config_explanations_kde(data: np.ndarray,
     """
     :return: kde distributions for all selected features in a cluster, default as 0
     """
-
+    # todo: optimise clustering as instance_cluster_idx in parameter transfer
     instance_cluster_idx = np.where(clustering == cluster_label)
     cluster = data[instance_cluster_idx]
-    percentage = instance_cluster_idx.shape[0]/data.shape[0]
+    percentage = instance_cluster_idx[0].shape[0]/data.shape[0] * 100
 
     figures = [html.Br(), dbc.Alert("Contains " + format(percentage, '.2f') + ' % of data', color="info")]
 
@@ -85,7 +100,7 @@ def config_explanations_kde(data: np.ndarray,
         kde = get_kde(data_att, cluster_att, att_name)
 
         figures.append(html.H6(
-            [att_name, dbc.Badge(format(ics_cluster[0, att], '.1f') + " IC", color="success", className="ml-1")]))
+            [att_name, dbc.Badge(format(ics_cluster[att], '.1f') + " IC", color="success", className="ml-1")]))
         figures.append(dcc.Graph(id=f"Cluster {cluster_label}, {att_name}",
                                  figure=kde,
                                  config={
@@ -95,7 +110,7 @@ def config_explanations_kde(data: np.ndarray,
     return figures
 
 
-def config_hyperparameter_tuning():
+def config_hyperparameter_tuning(datasize: int = 500):
     return dbc.Row(
         [
             dbc.Col(
@@ -108,10 +123,10 @@ def config_hyperparameter_tuning():
                                 dcc.Slider(
                                     id='alpha-slider',
                                     min=0,
-                                    max=500,
+                                    max=datasize/5,
                                     step=10,
-                                    marks={i: str(i) for i in range(0, 501, 50)},
-                                    value=250,
+                                    marks={i: str(i) for i in range(0, int(datasize/5), int(datasize/40))},
+                                    value=int(datasize/10),
                                     tooltip={"always_visible": False}
                                 )
                             )
@@ -129,7 +144,7 @@ def config_hyperparameter_tuning():
                                     step=0.05,
                                     marks={round(i, 1): format(i, '.1f') for i in
                                            np.arange(1.0, 2.1, 0.1)},
-                                    value=1.6,
+                                    value=1.5,
                                     tooltip={"always_visible": False}
                                 )
                             )
@@ -221,6 +236,7 @@ def config_layout(datasets_config: str = 'datasets_info.yaml', dataset_name: str
     clustering = adata.obs['infoclus_clustering'].values
     main_emb = adata.obsm.get(main_emb_name)
     data = adata.X
+    count_intances = data.shape[0]
     att_names = adata.var.index.values
     attributes = adata.uns['InfoClus'][f'cluster_{cluster_id}']['attributes']
     ics_cluster = adata.uns['InfoClus'][f'cluster_{cluster_id}']['ic']
@@ -232,13 +248,14 @@ def config_layout(datasets_config: str = 'datasets_info.yaml', dataset_name: str
         dbc.Card(
             dbc.CardBody(
                 [
-                    # Dashboard
+                    # Dropdowns
                     dbc.Row(
+                        [
                         dbc.Col(
                             dcc.Dropdown(
                                 id='dataset-select',
                                 options=[
-                                    {'Dataset': dataset['name'], 'value': dataset['name']} for dataset in datasets_info['datasets']
+                                    {'label': dataset['name'], 'value': dataset['name']} for dataset in datasets_info['datasets']
                                 ],
                                 value=datasets_info['datasets'][0]['name']
                             )
@@ -247,13 +264,12 @@ def config_layout(datasets_config: str = 'datasets_info.yaml', dataset_name: str
                             dcc.Dropdown(
                                 id='embedding-select',
                                 options=[
-                                    {'Embedding': embedding['method'], 'value': embedding['method']} for embedding in datasets_info['embeddings']
+                                    {'label': embedding, 'value': embedding} for embedding in datasets_info['embeddings']['method']
                                 ],
                                 value=main_emb_name
                             )
-                        ),
-                        justify="center"
-                    ),
+                        )
+                    ]),
                     html.Br(),
                     dbc.Row(
                         [
@@ -264,6 +280,7 @@ def config_layout(datasets_config: str = 'datasets_info.yaml', dataset_name: str
                                     dbc.Card(
                                         dbc.CardBody(
                                             [
+
                                                 html.H5(children=dataset_name, className="card-title"),
                                                 config_scatter_graph(clustering, main_emb)
                                             ]
@@ -275,7 +292,7 @@ def config_layout(datasets_config: str = 'datasets_info.yaml', dataset_name: str
                                         dbc.CardBody(
                                             [
                                                 html.H5(children="Tune hyperparameters", className="card-title"),
-                                                config_hyperparameter_tuning()
+                                                config_hyperparameter_tuning(count_intances)
                                             ]
                                         )
                                     ),
@@ -302,7 +319,7 @@ def config_layout(datasets_config: str = 'datasets_info.yaml', dataset_name: str
                                         ),
                                     )
                                 ],
-                                width="auto"
+                            width="auto"
                             )
                         ], align="center", justify="center"
                     )

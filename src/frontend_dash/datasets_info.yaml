@@ -3,4 +3,4 @@ datasets:
     path: german_socio_eco.h5ad
 
 embeddings:
-  method: "tSNE_1"
+  method: ["tSNE_1", "PCA", "tSNE_3", "tSNE_5", "tSNE_10"]

@@ -18,5 +18,7 @@ for url in my_css_urls:
 app.layout = html.Div(config_layout())
 register_callbacks(app)
 
-# todo: store ExclusOptimiser objects to somewhere, maybe datasets_info or not, to accelerate Dash App callback (low priority)
-
+if __name__ == "__main__":
+    app.run_server(
+        debug=True, port=8051, dev_tools_hot_reload=True, use_reloader=True
+    )

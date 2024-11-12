@@ -1,5 +1,6 @@
 import math
-
+import sys
+import os
 import numpy as np
 import copy
 import collections
@@ -15,6 +16,8 @@ from queue import Queue
 from os.path import join
 
 import pandas as pd
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '.')))
 
 from caching import from_cache, to_cache
 from sklearn.cluster import AgglomerativeClustering
