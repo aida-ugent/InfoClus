@@ -40,7 +40,7 @@ def register_callbacks(app):
 
         # todo: finally, integrate the adata write in into exclusoptimiser, or like Zander, first store in optimiser not another file
         dicts2adata(dataset_name, adata_path,
-                    f'../../data/{dataset_name}/{dataset_name}-{embedding_name}-single-{alpha}-{beta}-{minAtt}-{RUNTIME_OPTIONS[runtime_id]}-0-0')
+                    f'../../data/{dataset_name}/{dataset_name}-{embedding_name}-single-{alpha}-{beta}-{minAtt}-{int(RUNTIME_OPTIONS[runtime_id])}-0-0')
         updated_adata = ad.read_h5ad(adata_path)
 
         # todo: fix get_scatter, make stype consistent, reduce redundant

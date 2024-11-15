@@ -30,8 +30,8 @@ dicts2adata(dataset_name, adata_path,
             f'../../data/{dataset_name}/{dataset_name}-{embedding_name}-single-{alpha}-{beta}-{min_att}-0-0-0')
 updated_adata = ad.read_h5ad(adata_path)
 
-config_scatter_graph(updated_adata.obs['infoclus_clustering'].values,
-                                    updated_adata.obsm.get(embedding_name))
+# config_scatter_graph(updated_adata.obs['infoclus_clustering'].values,
+#                                     updated_adata.obsm.get(embedding_name))
 
 
 print('hello world')

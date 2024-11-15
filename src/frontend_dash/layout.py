@@ -20,19 +20,21 @@ SIDEBAR_STYLE = {
     # "width": "fit-content"
 }
 
+KERNALS = ["gaussian", "tophat", "epanechnikov"]
+KERNAL = KERNALS[0]
 
 def get_kde(data_att: np.ndarray, cluster_att: np.ndarray, att_name: str):
     """
     :return: return kernal desity estimation of one attribute for a cluster
     """
 
-    # todo: check kde distribution, something wrong, especially overlap density
-    kde_data = gaussian_kde(data_att)
-    kde_cluster = gaussian_kde(cluster_att)
+    # Note: two kde's need to have the same bandwidth to ensure that they are comparable
+    kde_data = KernelDensity(kernel='gaussian', bandwidth='scott').fit(data_att.reshape(-1,1))
+    kde_cluster = KernelDensity(kernel='gaussian', bandwidth=kde_data.bandwidth_).fit(cluster_att.reshape(-1,1))
 
-    x_vals = np.linspace(min(data_att), max(data_att), 1000)
-    kde_data_vals = kde_data(x_vals)
-    kde_cluster_vals = kde_cluster(x_vals)
+    x_vals = np.linspace(min(min(data_att), min(cluster_att)), max(max(data_att), max(cluster_att)), 1000)
+    kde_data_vals = np.exp(kde_data.score_samples(x_vals.reshape(-1, 1)))
+    kde_cluster_vals = np.exp(kde_cluster.score_samples(x_vals.reshape(-1, 1)))
 
     cluster_proportion = len(cluster_att) / len(data_att)
     overlap_density = kde_cluster_vals * cluster_proportion
@@ -126,6 +128,7 @@ def config_hyperparameter_tuning(datasize: int = 500):
                                     max=datasize/5,
                                     step=10,
                                     marks={i: str(i) for i in range(0, int(datasize/5), int(datasize/40))},
+                                    # todo: align initial values to be the same with initial webpage activation
                                     value=int(datasize/10),
                                     tooltip={"always_visible": False}
                                 )
