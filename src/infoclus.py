@@ -3,11 +3,30 @@ from sklearn.cluster import AgglomerativeClustering
 
 
 class InfoClus:
+    '''
+        InfoClus is a class that offers a explanable clustering solution for datasets
+        It uses a pre-clustering model to offer candidate clusters
 
+        Attributes:
+        name (str): The name of the dataset.
+        data (pd.DataFrame): The scaled data of the dataset.
+        emb_name (str): The embedding to be used for clustering.
+        model : The pre-clustering model to be used to offer candidate clusters.
+
+    '''
+
+    # todo: when dealing with the adata, using get_func defined in the adata_utils.py
     def __init__(self, name: str, data: pd.DataFrame,
                  main_emb: str = 'tSNE_1',
                  model = AgglomerativeClustering(linkage='single', distance_threshold=0, n_clusters=None)
                  ):
+        '''
+
+        :param name: name of the dataset
+        :param data: the scaled data of the dataset
+        :param main_emb: the embedding to be used for clustering
+        :param model: the pre-clustering model to be used to offer candidate clusters
+        '''
 
         self.name = name
         self.data = data
