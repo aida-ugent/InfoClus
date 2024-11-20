@@ -44,21 +44,19 @@ def generate_adata(relative_data_path: str, dataset_name: str):
     adata.obsm['tsne'] = tsne.fit_transform(data_scaled)
     pca = PCA(n_components=2)
     adata.obsm['pca'] = pca.fit_transform(data_scaled)
-    # todo: fix umap to work successfully
-    # umap = UMAP(n_components=2)
-    # adata.obsm['umap'] = umap.fit_transform(data_scaled)
-    tsne_embs = compute_tsne_series(
-                    data = data_scaled,
-                    fine_exag_iter=[(10, 200), (5, 200), (3, 200), (1, 200)],
-                    hd_metric= "euclidean",
-                    init= adata.obsm['pca'],
-                    sampling_frac=1, # no need to subsample for this small dataset
-                    smoothing_perplexity=30,
-                    random_state=42
-    )
-    for exag, emb in tsne_embs.items():
-        adata.obsm[f"tSNE_{exag}"] = emb
+    # # TODO: fix umap to work successfully
+    # tsne_embs = compute_tsne_series(data = data_scaled,
+    #                 fine_exag_iter=[(1, 200)],
+    #                 hd_metric= "euclidean",
+    #                 init= adata.obsm['pca'],
+    #                 sampling_frac=1, # no need to subsample for this small dataset
+    #                 smoothing_perplexity=30,
+    #                 random_state=42
+    # )
+    # for exag, emb in tsne_embs.items():
+    #     adata.obsm[f"tSNE_{exag}"] = emb
 
     # save adata
     adata.write(os.path.join(relative_data_path, dataset_name, f'{dataset_name}.h5ad'))
     print(f"adata file is saved at {os.path.join(relative_data_path, dataset_name, f'{dataset_name}.h5ad')}")
+    return adata
