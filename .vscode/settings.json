@@ -1,0 +1,12 @@
+{
+    "python.pythonPath": "C:\\Users\\Administrator\\anaconda3\\envs\\ExClus\\python.exe",
+    "editor.formatOnSave": true,
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": true,
+    "python.linting.pylintArgs": [
+        "--disable=C0111"  
+    ],
+    "terminal.integrated.env.windows": {
+        "PYTHONPATH": "C:\\Users\\Administrator\\OneDrive - UGent\\Documents\\GitHub\\ExClus"
+    }
+}
