@@ -7,10 +7,12 @@ import yaml
 import anndata as ad
 from scipy.stats import gaussian_kde
 from sklearn.neighbors import KernelDensity
+import sys, os
 
 from dash import dcc
 from dash import html
-from ..src.caching import from_cache
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src.caching import from_cache
 
 RUNTIME_MARKERS = ["0.01s", "0.5s", "1s", "5s", "10s", "30s", "1m","3m", "5m", "10m", "30m", "1h", "full"]
 
