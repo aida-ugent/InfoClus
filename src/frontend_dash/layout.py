@@ -10,7 +10,7 @@ from sklearn.neighbors import KernelDensity
 
 from dash import dcc
 from dash import html
-from src.caching import from_cache
+from ..src.caching import from_cache
 
 RUNTIME_MARKERS = ["0.01s", "0.5s", "1s", "5s", "10s", "30s", "1m","3m", "5m", "10m", "30m", "1h", "full"]
 

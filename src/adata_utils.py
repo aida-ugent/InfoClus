@@ -8,6 +8,16 @@ from sklearn.manifold import TSNE
 from tsne import compute_tsne_series
 # from umap import UMAP
 
+
+def get_var_complexity(var: pd.DataFrame) -> pd.Series:
+    '''
+    Get the complexity of the variable based on the type of the variable
+    :param var_type: the type of the variable
+    :return: the complexity of the variable
+    '''
+    # if the variable is numeric, it is considered 2, if it is categorical, it is considered as the count of distinct values
+    return var['var_type'].apply(lambda x: 2 if x == 'numeric' else len(var['var_type'].unique()))
+
 def generate_adata(relative_data_path: str, dataset_name: str):
     '''
     Data preprocessing: given dataset name, generating adata file contain versions of dataset, feature types and embeddings
@@ -28,6 +38,7 @@ def generate_adata(relative_data_path: str, dataset_name: str):
     adata.var_names = df_data.columns.astype(str)
     # todo: tweak the below to be compatible with all data sets
     adata.var['var_type'] = 'numeric'
+    adata.var['var_complexity'] = get_var_complexity(adata.var)
     # todo: check the difference of tsne & PCA between here and Edith used. 
     tsne = TSNE(n_components=2)
     adata.obsm['tsne'] = tsne.fit_transform(data_scaled)
