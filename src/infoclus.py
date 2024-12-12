@@ -37,6 +37,7 @@ class InfoClus:
         :param model: the pre-clustering model to be used to offer candidate clusters
         '''
 
+        # TODO: remove usage of adata except for initialization
         self.name = dataset_name
         self.relative_data_path = relative_data_path
         self.emb_name = main_emb
