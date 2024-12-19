@@ -20,10 +20,15 @@ def get_var_complexity(var: pd.DataFrame) -> pd.Series:
 
 def generate_adata(relative_data_path: str, dataset_name: str):
     '''
-    Data preprocessing: given dataset name, generating adata file contain versions of dataset, feature types and embeddings
-    Note: this function is need the directory structure to be the same as the one in the repo
-    :param DATA_SET_NAME:
-    :return:
+    Generate an AnnData object and save it as an h5ad file. AnnData object is used widely in this project as a role of saving meta data and computed infoclus result.
+
+    Datails: given dataset name, generating adata file contains
+    1. versions of dataset, including raw and scaled
+    2. feature types, like numerical or categorical
+    3. feature complexities, basically the minimum satitics needed to leaen the feature (mean&var for Guassian)
+    3. embeddings of tsne and PCA
+    
+    Note: to make this function work, you will need the directory structure to be the same as the one in the repo
     '''
     # Load data
     data_path = os.path.join(relative_data_path, dataset_name, f'{dataset_name}.csv')
@@ -33,8 +38,8 @@ def generate_adata(relative_data_path: str, dataset_name: str):
     
     # generate adata
     adata = ad.AnnData(X = data_scaled)
-    adata.layers['raw'] = df_data.values
-    adata.layers['scaled'] = data_scaled
+    adata.layers['raw_data'] = df_data.values
+    adata.layers['scaled_data'] = data_scaled
     adata.var_names = df_data.columns.astype(str)
     # todo: tweak the below to be compatible with all data sets
     adata.var['var_type'] = 'numeric'
