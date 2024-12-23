@@ -1,4 +1,5 @@
 import copy
+import numpy as np
 
 def kl_gaussian(m1, s1, m2, s2, epsilon=0.00001):
     # kl(custer||prior)

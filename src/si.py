@@ -30,7 +30,7 @@ IfProfile = False
 IfLimitAtt = True
 linkages = ['ward', 'complete', 'average', 'single']
 linkage = linkages[3]
-sampleWeight = 1
+
 
 def kl_gaussian(m1, s1, m2, s2, epsilon=0.00001):
     # kl(custer||prior)
@@ -47,7 +47,6 @@ def kl_gaussian(m1, s1, m2, s2, epsilon=0.00001):
     a[zeros_std2] = 0
     b = (std1 ** 2 + (mean1 - mean2) ** 2) / (2 * std2 ** 2)
     return a + b - 1 / 2
-
 
 def kl_bernoulli(p_value, q_value, epsilon=0.00001):
 
@@ -82,9 +81,6 @@ def kl_bernoulli(p_value, q_value, epsilon=0.00001):
     b[ones_p] = 0
 
     return a + b
-
-
-
 
 class ExclusOptimiser:
 

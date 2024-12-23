@@ -1,3 +1,5 @@
+from calendar import error
+
 import plotly.express as px
 import numpy as np
 import pandas as pd
@@ -196,7 +198,7 @@ def config_hyperparameter_tuning(datasize: int = 500):
                 [
                     dbc.Row(dbc.Col(
                         # Recalc restarts from scratch
-                        dbc.Button("Recalc", color="primary", size="md", id="recalc-hyperparameters", block=True)),
+                        dbc.Button("Recalc", color="primary", size="md", id="recalc-hyperparameters")),
                         justify="center"
                     ),
                     dbc.Tooltip(
@@ -212,13 +214,15 @@ def config_hyperparameter_tuning(datasize: int = 500):
     )
 
 
-def get_dataset_path(data, dataset_name):
+def get_dataset_path(dataset_name):
     # Find the dataset with the specified name and return its path in yaml
-    for dataset in data['datasets']:
-        if dataset['name'] == dataset_name:
-            return dataset['path']
-    return None
-
+    script_a_dir = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(script_a_dir, '..', '..', 'data', dataset_name)
+    if os.path.exists(path):
+        return path
+    else:
+        print("Dataset not found")
+        return None
 
 def get_dataset_main_emb(data, dataset_name):
     # Find the dataset with the specified name and return its path in yaml
@@ -233,8 +237,8 @@ def config_layout(datasets_config: str = 'datasets_info.yaml', dataset_name: str
     with open(datasets_config, 'r') as file:
         datasets_info = yaml.safe_load(file)
 
-    dataset_path = get_dataset_path(datasets_info, dataset_name)
-    adata = ad.read_h5ad(dataset_path)
+    dataset_path = get_dataset_path(dataset_name)
+    adata = ad.read_h5ad(os.path.join(dataset_path, f'{dataset_name}.h5ad'))
 
     count_clusters = len(np.unique(adata.obs['infoclus_clustering'].values))
     main_emb_name = adata.uns['InfoClus']['main_emb']

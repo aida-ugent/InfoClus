@@ -1,3 +1,6 @@
+import pickle
+import warnings
+
 import pandas as pd
 import numpy as np
 import os
@@ -22,7 +25,8 @@ class InfoClus:
 
         usually, the process of InfoClus is as follows:
         1. initialization
-        2. run the algorithm to get clustering and explanation
+        2. optimise: either run InfoClus or read from cache
+        3. run InfoClus (optional)
 
         Attributes:
         name: name of the dataset
@@ -34,6 +38,8 @@ class InfoClus:
 
     '''
 
+    ######################################## step 1: initialization ########################################
+    # todo: allow using .pkl to do initialization
     def __init__(self, dataset_name: str, relative_data_path: str,
                  main_emb: str = 'tsne',
                  model = AgglomerativeClustering(linkage='single', distance_threshold=0, n_clusters=None),
@@ -53,7 +59,6 @@ class InfoClus:
         :param main_emb: the embedding type to be used for clustering
         :param model: the pre-clustering model to be used to offer candidate clusters
         '''
-        # TODO: remove usage of adata except for initialization and final result writing
         self.name = dataset_name
         self.relative_data_path = relative_data_path
         self.emb_name = main_emb
@@ -73,8 +78,9 @@ class InfoClus:
             self.alpha = int(self.adata.n_obs/10)
         else:
             self.alpha = alpha
-        self.data_raw = pd.DataFrame(self.adata.layers['raw'], columns=self.adata.var_names)
-        self.data_scaled = pd.DataFrame(self.adata.layers['scaled'], columns=self.adata.var_names)
+        self.data_raw = pd.DataFrame(self.adata.layers['raw_data'], columns=self.adata.var_names)
+        self.data_scaled = pd.DataFrame(self.adata.layers['scaled_data'], columns=self.adata.var_names)
+        self.data = self.data_scaled.values
         self.embedding = self.adata.obsm[self.emb_name]
         # TODO: check the type of self.var_type
         # TODO: change name of _dls to be more cohesive with the code
@@ -104,8 +110,13 @@ class InfoClus:
         self._create_linkage() 
         self._calc_priors()
 
-        print('initialization done')
+        folder_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', f'{self.name}')
+        file_name = f'{self.name}_{self.emb_name}.pkl'
+        file_path = os.path.join(folder_path, file_name)
+        with open(file_path, "wb") as file:
+            pickle.dump(self, file)
 
+        print('initialization done')
 
     def _fit_model(self):
         '''
@@ -284,6 +295,39 @@ class InfoClus:
 
         return distribution3
 
+    # given means, vars, n_samples of a cluster, return its ic, vectorization for attributes
+    # todo: not revised yet
+    def ic_one_info(self, means_cluster, vars_cluster, n_samples):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            warningNum = len(w)
+            stds_cluster = vars_cluster ** 0.5
+            if len(w) != warningNum:
+                breakpoint()
+        # stds_cluster = vars_cluster ** 0.5
+        cluster_ic = []
+        if self.global_var_type == 'mixed':
+            pass
+        elif self.global_var_type == 'categorical':
+            means_binary_cluster = means_cluster
+            ic1 = n_samples * kl_bernoulli(means_binary_cluster, self._priorsBernM)
+            cluster_ic.extend(ic1)
+        elif self.global_var_type == 'numeric':
+            means_gaussian_cluster = means_cluster
+            stds_gaussian_cluster = stds_cluster
+            ic2 = n_samples * kl_gaussian(means_gaussian_cluster, stds_gaussian_cluster,
+                                                                   self._priorsGausM,
+                                                                   self._priorsGausS)
+            cluster_ic.extend(ic2)
+
+        return cluster_ic
+
+    # todo: not revised yet
+    def ic_categorical(self, distribution_cluster: pd.DataFrame, size_cluster: int) -> np.ndarray:
+        ic = (size_cluster ** self._samplesWeight) * self.kl_categorical(distribution_cluster.values)
+        return ic
+
+    ######################################## step 2: optimise: either run InfoClus or read from cache ########################################
     def optimise(self, alpha=None, beta=None, min_att=None, max_att=None, runtime_id=3):
         '''
         optimise result with current hyperparameters, the process is as follows:
@@ -305,50 +349,27 @@ class InfoClus:
 
         # check cache
         cache_name, previously_calculated = self.check_cache()
-
         # start clustering when no cache
         if previously_calculated is None:
             self._si_opt = 0
             self._res_in_brief = ''
             self._run_infoclus()
             self.create_cache_version(cache_name)
-            self.update_adata()
 
-        print(f'-------------------- ExClus - Dataset: {self.name} Emb: {self.emb_name} Alpha: {self.alpha} Beta: {self.beta} Ref. Runtime: {self.runtime}\n')
-        print(f'Clusters: {len(set(self._clustering_opt))}\n')
+        print(f'\nInfoClus - Dataset: {self.name} Emb: {self.emb_name} Alpha: {self.alpha} Beta: {self.beta} Ref. Runtime: {self.runtime}')
+        print(f'Count of Clusters: {len(set(self._clustering_opt))}')
         clusters = list(range(self._clusterlabel_max + 1))
-        column_names = self.data.columns
-        for i in clusters:
-            print(f"  cluster {i}: {sum(self._clustering_opt == i)} points")
-            print(f'    attributes: ', end='')
-            for j in self._attributes_opt[i]:
-                print(f'{column_names[j]} ', end='')
+        for cluster_idx in range(len(self._attributes_opt)):
+            print(f"    cluster {cluster_idx}:")
+            print(f'        count of points: {sum(self._clustering_opt == cluster_idx)}')
+            print(f'        attributes: ', end='')
+            for j in self._attributes_opt[cluster_idx]:
+                print(f'{self.data_raw.columns[j]} ', end='')
             print("")
         print("SI: ", self._si_opt)
+        self.update_adata()
 
-        return self._clustering_opt, self._attributes_opt, self._si_opt
-    
-    def check_cache(self):
-        cache_name = f'{self.name}_{self.emb_name}_{self.model.linkage}_alpha{int(self.alpha)}_beta{self.beta}_mina{self.min_att}_maxa{self.max_att}_runid{int(self.runtime_id)}'
-        previously_calculated = from_cache(os.path.join(self.cache_path, cache_name))
-        if previously_calculated is not None:
-            print("From cache")
-            self._clustering_opt = previously_calculated["clustering"]
-            self._split_nodes_opt = previously_calculated["split"]
-            self._clusterlabel_max = previously_calculated["maxlabel"]
-            self._binaryTargetsLen = previously_calculated["binary_att_length"]
-            self._clustersRelatedInfo = previously_calculated["infor"]
-            self._attributes_opt = previously_calculated["attributes"]
-            self._priors = previously_calculated["prior"]
-            self._si_opt = previously_calculated["si"]
-            self._ic_opt = previously_calculated["ic"]
-            self._dls = previously_calculated["dls"]
-            self._nodes_opt = previously_calculated["nodes"]
-            self._total_dl_opt = previously_calculated["total_dl"]
-            self._total_ic_opt = previously_calculated["total_ic"]
-            self._res_in_brief = previously_calculated["res_in_brief"]
-        return cache_name, previously_calculated
-    
+    ######################################## step 3: run InfoClus ########################################
     def _run_infoclus(self):
         '''
         Here is the core part of Infoclus algorithm, the process is as follows:
@@ -424,8 +445,7 @@ class InfoClus:
             else:
                 local_optimum = True
         print("done")
-        considered_splitting_times_refine = 0
-        print(f'considered splitting times: {considered_splitting_times} + {considered_splitting_times_refine}')
+        print(f'considered splitting times: {considered_splitting_times}')
 
     def _choose_optimal_split(self, nodes, clustering=None, clusteringInfo=None, max_cluster_label=0, ic_temp=None):
         '''
@@ -548,86 +568,59 @@ class InfoClus:
         not_change = np.where(indices == old_cluster)
 
         return indices, new_cluster, old_cluster, to_change, not_change
-    
+
+    # get the best attribute for each cluster
+    def _init_optimal_attributes_dl(self, ics):
+    # todo: not revised yet
+        sortedic = np.dstack(np.unravel_index(np.argsort(-ics.ravel()), ics.shape))[0]
+        find_index = sortedic[:, 0]
+        attributes_total = []
+        ic_attributes = 0
+        dl = 0
+        for i in range(len(ics)):
+            index = np.where(find_index == i)[0][0:self.min_att]
+            attributes = [sortedic[ind][1] for ind in index]
+            attributes_total.append(attributes)
+            ic_attributes += sum(ics[i, attributes])
+            dl = dl + sum((self._dls.iloc[attribute]) for attribute in attributes)
+            sortedic = np.delete(sortedic, index, axis=0)
+            find_index = np.delete(find_index, index, axis=0)
+        best_comb_val = ic_attributes / (self.alpha + dl ** self.beta)
+
+        return attributes_total, ic_attributes, dl, best_comb_val, sortedic
+
     def calc_optimal_attributes_dl(self, ics):
         '''
         return attributes set for each cluster
         '''
         ics = np.array(ics)
-        # get one attribute for each cluster
-        attributes_total, ic_attributes, dl, best_comb_val, ics_dl = self._init_optimal_attributes_dl(ics)
+        attributes_total, ic_attributes, dl, best_comb_val, sortedic = self._init_optimal_attributes_dl(ics)
+        out_max_att_limit = False
+        while not out_max_att_limit and len(sortedic) > 0:
+            extend_cluster_try = sortedic[0][0]
+            extend_attr_try = sortedic[0][1]
+            sortedic = np.delete(sortedic, 0, axis=0)
+            if len(attributes_total[extend_cluster_try]) >= self.max_att:
+                continue
+            dl_try = dl + self._dls.iloc[extend_attr_try]
+            ic_attributes_try = ic_attributes + ics[extend_cluster_try, extend_attr_try]
+            si_try = ic_attributes_try / (self.alpha + (dl_try) ** self.beta)
+            if si_try >= best_comb_val:
+                best_comb_val = si_try
+                attributes_total[extend_cluster_try].append(extend_attr_try)
+                dl = dl_try
+                ic_attributes = ic_attributes_try
+                out_max_att_limit = all(len(attribute) >= self.max_att for attribute in attributes_total)
+            else:
+                break
 
-        # Optimise
-        if self.global_var_type == 'mixed':
-            pass
-        elif self.global_var_type == 'numeric':
-            si = -1
-            new_value = best_comb_val
-            ic_temp = 0
-            dl_temp = 0
-            current_ic_index = 0
-            while new_value > si:
-                # New becomes old
-                si = new_value
-                # Check passed so update attributes, ic, and total dl + remove chosen attribute from its queue
-                if si != best_comb_val:
-                    attr = ics_dl[dl_temp][current_ic_index]
-                    current_ic_index += 1
-                    attributes_total[attr[0]].append(self._dl_indices[dl_temp][attr[1]])
-                    dl += dl_temp
-                    ic_attributes += ic_temp
-                # Look for next attribute to test
-                ic_temp = 0
-                new_temp = 0
-                dl_temp = 0
-                # Check in order of increasing dl which attribute to add
-                for key, value in ics_dl.items():
-                    try:
-                        test_att = value[current_ic_index]
-                    except:
-                        continue
-                    ic_test = ics[test_att[0]][self._dl_indices[key][test_att[1]]]
-                    # Only check att with higher dl if ic higher
-                    if ic_test < ic_temp:
-                        continue
-                    si_test = (ic_attributes + ic_test) / (self.alpha + (dl + key) ** self.beta)
-                    if si_test > new_temp:
-                        new_temp = si_test
-                        ic_temp = ic_test
-                        dl_temp = key
-                new_value = new_temp
-
-        elif self.global_var_type == 'categorical':
-
-            si = best_comb_val
-            left_chances = 2
-
-            for row in ics_dl:
-
-                test_cluster = row[0]
-                test_att = row[1]
-                ic_test = ics[test_cluster][test_att]
-                si_test = (ic_attributes + ic_test) / (
-                            self.alpha + (dl + self._fixedDl + self._dls[test_att]) ** self.beta)
-
-                if si_test > si:
-                    attributes_total[test_cluster].append(test_att)
-                    ic_attributes = ic_attributes + ic_test
-                    dl = dl + self._fixedDl + self._dls[test_att]
-                    si = si_test
-                else:
-                    left_chances = left_chances - 1
-
-                if left_chances < 0:
-                    break
-
-        return attributes_total, ic_attributes, dl, si
+        return attributes_total, ic_attributes, dl, best_comb_val
     
     def create_cache_version(self, cache_name):
         previously_calculated = {"clustering": self._clustering_opt,
                                  "split": self._split_nodes_opt,
                                  "maxlabel": self._clusterlabel_max,
-                                 "binary_att_length": self._binaryTargetsLen,
+                                 "global_var_type": self.global_var_type,
                                  "infor": self._clustersRelatedInfo,
                                  "attributes": self._attributes_opt,
                                  "prior": self._priors,
@@ -640,6 +633,27 @@ class InfoClus:
                                  "res_in_brief": self._res_in_brief
                                  }
         to_cache(os.path.join(self.cache_path, cache_name), previously_calculated)
+
+    def check_cache(self):
+        cache_name = f'{self.name}_{self.emb_name}_{self.model.linkage}_alpha{int(self.alpha)}_beta{self.beta}_mina{self.min_att}_maxa{self.max_att}_runid{int(self.runtime_id)}'
+        previously_calculated = from_cache(os.path.join(self.cache_path, cache_name))
+        if previously_calculated is not None:
+            print("From cache")
+            self._clustering_opt = previously_calculated["clustering"]
+            self._split_nodes_opt = previously_calculated["split"]
+            self._clusterlabel_max = previously_calculated["maxlabel"]
+            self.global_var_type = previously_calculated["global_var_type"]
+            self._clustersRelatedInfo = previously_calculated["infor"]
+            self._attributes_opt = previously_calculated["attributes"]
+            self._priors = previously_calculated["prior"]
+            self._si_opt = previously_calculated["si"]
+            self._ic_opt = previously_calculated["ic"]
+            self._dls = previously_calculated["dls"]
+            self._nodes_opt = previously_calculated["nodes"]
+            self._total_dl_opt = previously_calculated["total_dl"]
+            self._total_ic_opt = previously_calculated["total_ic"]
+            self._res_in_brief = previously_calculated["res_in_brief"]
+        return cache_name, previously_calculated
 
     # TODO: rename the variables in adata to match frontend
     def update_adata(self):
@@ -660,49 +674,7 @@ class InfoClus:
             adata.uns['InfoClus'][f'cluster_{cluster}']['count'] = self._clustersRelatedInfo[cluster][2]
             adata.uns['InfoClus'][f'cluster_{cluster}']['ic'] = np.array(self._ic_opt[cluster])
             adata.uns['InfoClus'][f'cluster_{cluster}']['attributes'] = self._attributes_opt[cluster]
-
         adata.var['prior_mean'] = self._priors[:,0]
         adata.var['prior_var'] = self._priors[:,1]
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        column_names = self.data.columns.tolist()
-        # save ExClus information into .h5ad file
-        adata.uns['ExClus'] = {}
-
-        try:
-            means = self.data.mean()
-            stds = self.data.std()
-        except TypeError:
-            self.data = self.data.apply(lambda col: pd.factorize(col)[0])
-            means = self.data.mean()
-            stds = self.data.std()
-
-        data_prior = np.hstack((means.values.reshape(len(means),1),stds.values.reshape(len(stds),1)))
-        prior = pd.DataFrame(data_prior,  index=column_names, columns=['mean', 'var'])
-        adata.uns['ExClus'] = {'si': self._si_opt, 'total-ic': self._total_ic_opt, 'priors': prior}
-        for cluster in range(self._clusterlabel_max + 1):
-            adata.uns['ExClus'][f'cluster {cluster}'] = {}
-            adata.uns['ExClus'][f'cluster {cluster}']['attributes'] = [column_names[attr] for attr in self._attributes_opt[cluster]]
-            adata.uns['ExClus'][f'cluster {cluster}']['ic'] = self._ic_opt[cluster]
-        adata.obs['exclus-clustering'] = self._clustering_opt
-        adata.write(file_name)
-        return adata
+        adata.write(f'{file_name}.h5ad')
+        print(f'update {self.name}.h5ad successfully')

@@ -1,27 +1,10 @@
-
-import anndata as ad
 import os
+from infoclus import InfoClus
 
-import pandas as pd
 
+RELATIVE_DATA_PATH = os.path.join(os.path.pardir, 'data')
 DATA_SET_NAME = 'german_socio_eco'
-# get reletive path to access file under data
-df = pd.read_csv(f'../data/{DATA_SET_NAME}.csv')
 
-# RELATIVE_DATA_PATH =
+infoclus = InfoClus(DATA_SET_NAME, RELATIVE_DATA_PATH)
+# infoclus.optimise()
 
-
-#
-# def generate_adata(DATA_SET_NAME):
-#     '''
-#     Data preprocessing: given dataset name, generating adata file contain versions of dataset, feature types and embeddings
-#     :param DATA_SET_NAME:
-#     :return:
-#     '''
-#
-#
-#     adata = ad.AnnData(X=hd_data)
-#
-#
-#
-# adata = generate_adata(DATA_SET_NAME)

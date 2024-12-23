@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 import anndata as ad
 
@@ -23,22 +25,21 @@ def register_callbacks(app):
         prevent_initial_call=True
     )
     def optimise_different_hyperparameters(change_hyper, dataset_name, embedding_name, alpha, beta, runtime_id, minAtt):
-        # todo: get embedding, seperate initial embedding computaion from trace to here
-
-        adata_path = f'{dataset_name}.h5ad'
+        script_a_dir = os.path.dirname(os.path.abspath(__file__))
+        data_path = os.path.join(script_a_dir, '..', '..', 'data', dataset_name)
+        adata_path = os.path.join(data_path, f'{dataset_name}.h5ad')
         adata = ad.read_h5ad(adata_path)
 
-        data = adata.layers['raw_data']
-        df = pd.DataFrame(data, columns=adata.var.index)
-        df_data, df_scaled, lenBinary = load_data(df)
         embedding = adata.obsm.get(embedding_name)
-        # todo: max_att not be applied in si, remove it or revise it
+        ###################### todo 0: check if infoclus object with the same embedding already exists
+        ###################### todo 1: get InfoClus object from .pkl, if so; initialize if not
+        ###################### todo 2: call optimise and pass parameters
+        ###################### todo X: add return to optimise so that do not need to read from adata.
         optimiser = ExclusOptimiser(df, df_scaled, lenBinary,
                                     embedding, name=dataset_name, emb_name=embedding_name,
                                     alpha=alpha, beta=beta, min_att=minAtt, max_att=0, runtime_id=runtime_id,
                                     work_folder=f'../../data/{dataset_name}')
 
-        # todo: finally, integrate the adata write in into exclusoptimiser, or like Zander, first store in optimiser not another file
         dicts2adata(dataset_name, adata_path,
                     f'../../data/{dataset_name}/{dataset_name}-{embedding_name}-single-{alpha}-{beta}-{minAtt}-{int(RUNTIME_OPTIONS[runtime_id])}-0-0')
         updated_adata = ad.read_h5ad(adata_path)
