@@ -15,8 +15,10 @@ from dash import dcc
 from dash import html
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.caching import from_cache
+from src.utils import get_git_root
 
-RUNTIME_MARKERS = ["0.01s", "0.5s", "1s", "5s", "10s", "30s", "1m","3m", "5m", "10m", "30m", "1h", "full"]
+ROOT_DIR = get_git_root()
+RUNTIME_MARKERS = ["0.01s", "0.5s", "1s", "5s", "10s", "30s", "1m","3m", "5m", "10m", "30m", "1h"]
 
 SIDEBAR_STYLE = {
     "overflow-y": "scroll",
@@ -60,30 +62,31 @@ def get_kde(data_att: np.ndarray, cluster_att: np.ndarray, att_name: str):
     return fig
 
 
-def get_scatter(clustering: np.ndarray, embedding: np.ndarray):
+def config_scatter_graph(adata: ad.AnnData, emb_name: str = None):
+    if emb_name is None:
+        emb_name = adata.uns['InfoClus']['main_emb']
+    alpha = adata.uns['InfoClus']['hyperparameters']['alpha']
+    beta = adata.uns['InfoClus']['hyperparameters']['beta']
+    mina = adata.uns['InfoClus']['hyperparameters']['mina']
+    maxa = adata.uns['InfoClus']['hyperparameters']['maxa']
+    runid = adata.uns['InfoClus']['hyperparameters']['runid']
+    run_time_marker = RUNTIME_MARKERS[runid]
+
+    clustering = adata.obs['infoclus_clustering'].values
+    embedding = adata.obsm.get(emb_name)
+
     df = pd.DataFrame({
         'x': embedding[:, 0],  # X coordinates
         'y': embedding[:, 1],  # Y coordinates
         'class': pd.Categorical(clustering)  # Classifications
     })
-    # todo: illustrate main embedding used for clustering computation
-    fig = px.scatter(df, x='x', y='y', color='class', title='clustering')
+    fig = px.scatter(df, x='x', y='y', color='class',
+                     title=f'clusteringEmb_{emb_name} alpha_{alpha} beta_{beta} mina_{mina} maxa_{maxa} runtime_{run_time_marker}')
     fig.update_layout(
         width=810,
         height=540
     )
-
     return fig
-
-
-def config_scatter_graph(clustering: np.ndarray, embedding: np.ndarray):
-
-    graph = dcc.Graph(
-        id="embedding-scatterPlot",
-        figure=get_scatter(clustering, embedding)
-    )
-
-    return graph
 
 
 def config_explanations_kde(data: np.ndarray,
@@ -116,7 +119,28 @@ def config_explanations_kde(data: np.ndarray,
     return figures
 
 
-def config_hyperparameter_tuning(datasize: int = 500):
+def config_hyperparameter_tuning(adata):
+
+    alpha = adata.uns['InfoClus']['hyperparameters']['alpha']
+    alpha_max = alpha * 5
+    alpha_min = 0
+
+    beta = adata.uns['InfoClus']['hyperparameters']['beta']
+    beta_max = 2
+    beta_min = 1
+
+    mina = adata.uns['InfoClus']['hyperparameters']['mina']
+    mina_max = mina * 5
+    mina_min = 0
+    maxa = adata.uns['InfoClus']['hyperparameters']['maxa']
+    maxa_max = maxa * 5
+    maxa_min = 0
+
+    runid = adata.uns['InfoClus']['hyperparameters']['runid']
+    runid_max = len(RUNTIME_MARKERS)
+    runid_min = 0
+
+
     return dbc.Row(
         [
             dbc.Col(
@@ -128,12 +152,12 @@ def config_hyperparameter_tuning(datasize: int = 500):
                             dbc.Col(
                                 dcc.Slider(
                                     id='alpha-slider',
-                                    min=0,
-                                    max=datasize/5,
+                                    min=alpha_min,
+                                    max=alpha_max,
                                     step=10,
-                                    marks={i: str(i) for i in range(0, int(datasize/5), int(datasize/40))},
+                                    marks={i: str(i) for i in range(alpha_min, alpha_max, int((alpha_max-alpha_min)/10))},
                                     # todo: align initial values to be the same with initial webpage activation
-                                    value=int(datasize/10),
+                                    value=alpha,
                                     tooltip={"always_visible": False}
                                 )
                             )
@@ -146,12 +170,12 @@ def config_hyperparameter_tuning(datasize: int = 500):
                             dbc.Col(
                                 dcc.Slider(
                                     id='beta-slider',
-                                    min=1.0,
-                                    max=2.0,
+                                    min=beta_min,
+                                    max=beta_max,
                                     step=0.05,
                                     marks={round(i, 1): format(i, '.1f') for i in
-                                           np.arange(1.0, 2.1, 0.1)},
-                                    value=1.5,
+                                           np.arange(beta_min, beta_max, 0.1)},
+                                    value=beta,
                                     tooltip={"always_visible": False}
                                 )
                             )
@@ -164,11 +188,11 @@ def config_hyperparameter_tuning(datasize: int = 500):
                             dbc.Col(
                                 dcc.Slider(
                                     id='runtime-slider',
-                                    min=0,
-                                    max=len(RUNTIME_MARKERS) - 1,
+                                    min=runid_min,
+                                    max=runid_max,
                                     step=1,
-                                    marks={i: RUNTIME_MARKERS[i] for i in range(len(RUNTIME_MARKERS))},
-                                    value=0,
+                                    marks={i: RUNTIME_MARKERS[i] for i in range(runid_max)},
+                                    value=runid,
                                     tooltip={"always_visible": False}
                                 )
                             )
@@ -181,11 +205,11 @@ def config_hyperparameter_tuning(datasize: int = 500):
                             dbc.Col(
                                 dcc.Slider(
                                     id='minAtt-slider',
-                                    min=1,
-                                    max=5,
+                                    min=mina_min,
+                                    max=mina_max,
                                     step=1,
-                                    marks={i: str(i) for i in range(1, 5, 1)},
-                                    value=2,
+                                    marks={i: str(i) for i in range(mina_max, 1)},
+                                    value=mina,
                                     tooltip={"always_visible": False}
                                 )
                             )
@@ -237,8 +261,10 @@ def config_layout(datasets_config: str = 'datasets_info.yaml', dataset_name: str
     with open(datasets_config, 'r') as file:
         datasets_info = yaml.safe_load(file)
 
-    dataset_path = get_dataset_path(dataset_name)
-    adata = ad.read_h5ad(os.path.join(dataset_path, f'{dataset_name}.h5ad'))
+    if dataset_name not in datasets_info['datasets']:
+        print("Error! Dataset not found.")
+
+    adata = ad.read_h5ad(os.path.join(ROOT_DIR, 'data', dataset_name, f'{dataset_name}.h5ad'))
 
     count_clusters = len(np.unique(adata.obs['infoclus_clustering'].values))
     main_emb_name = adata.uns['InfoClus']['main_emb']
@@ -264,9 +290,9 @@ def config_layout(datasets_config: str = 'datasets_info.yaml', dataset_name: str
                             dcc.Dropdown(
                                 id='dataset-select',
                                 options=[
-                                    {'label': dataset['name'], 'value': dataset['name']} for dataset in datasets_info['datasets']
+                                    {'label': dataset, 'value': dataset} for dataset in datasets_info['datasets']
                                 ],
-                                value=datasets_info['datasets'][0]['name']
+                                value=dataset_name
                             )
                         ),
                         dbc.Col(
@@ -289,9 +315,11 @@ def config_layout(datasets_config: str = 'datasets_info.yaml', dataset_name: str
                                     dbc.Card(
                                         dbc.CardBody(
                                             [
-
                                                 html.H5(children=dataset_name, className="card-title"),
-                                                config_scatter_graph(clustering, main_emb)
+                                                dcc.Graph(
+                                                        id="embedding-scatterPlot",
+                                                        figure=config_scatter_graph(adata, main_emb_name)
+                                                    )
                                             ]
                                         )
                                     ),
@@ -301,7 +329,7 @@ def config_layout(datasets_config: str = 'datasets_info.yaml', dataset_name: str
                                         dbc.CardBody(
                                             [
                                                 html.H5(children="Tune hyperparameters", className="card-title"),
-                                                config_hyperparameter_tuning(count_intances)
+                                                config_hyperparameter_tuning(adata)
                                             ]
                                         )
                                     ),
@@ -323,7 +351,8 @@ def config_layout(datasets_config: str = 'datasets_info.yaml', dataset_name: str
                                                     ],
                                                     value=0
                                                 ),
-                                                html.Div(config_explanations_kde(data, clustering, attributes, att_names, ics_cluster, cluster_id), id="explanation", style=SIDEBAR_STYLE)
+                                                html.Div(config_explanations_kde(data, clustering, attributes, att_names, ics_cluster, cluster_id),
+                                                         id="explanation", style=SIDEBAR_STYLE)
                                             ]
                                         ),
                                     )

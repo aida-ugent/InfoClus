@@ -15,7 +15,11 @@ for url in my_css_urls:
         "external_url": url
     })
 
-app.layout = html.Div(config_layout())
+app.layout = html.Div(
+    id='main-div',
+    children=config_layout(dataset_name='german_socio_eco')
+)
+
 register_callbacks(app)
 
 if __name__ == "__main__":

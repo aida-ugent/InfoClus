@@ -2,6 +2,7 @@ import numpy as np
 import copy
 import pandas as pd
 import anndata as ad
+import subprocess
 
 from sklearn.preprocessing import StandardScaler
 from typing import Union
@@ -152,3 +153,13 @@ def save_emb_adata(emb: np.ndarray, emb_name: str = '', adata_file_name: str = '
     adata.obsm[emb_name] = emb
     adata.uns["methods"]['tSNE'] = np.append(adata.uns["methods"]['tSNE'],emb_name)
     adata.write(adata_file_name)
+
+def get_git_root():
+    try:
+        root = subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"],
+            universal_newlines=True
+        ).strip()
+        return root
+    except subprocess.CalledProcessError:
+        raise RuntimeError("This directory is not a Git repository.")

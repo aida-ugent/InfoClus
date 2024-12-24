@@ -2,7 +2,8 @@ data_path:
   - path: data
 
 datasets:
-  - name: "german_socio_eco"
+  - 'german_socio_eco'
+  - 'cytometry_2500'
 
 embeddings:
-  method: ["tSNE_1", "PCA", "tSNE_3", "tSNE_5", "tSNE_10"]
+  method: ["tsne", "pca"]

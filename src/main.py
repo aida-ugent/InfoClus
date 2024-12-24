@@ -1,10 +1,26 @@
 import os
+import pickle
 from infoclus import InfoClus
+from src.frontend_dash.utils import check_infoclus_object
+from utils import get_git_root
 
+ROOT_DIR = get_git_root()
 
-RELATIVE_DATA_PATH = os.path.join(os.path.pardir, 'data')
-DATA_SET_NAME = 'german_socio_eco'
+# dataset_name = 'cytometry_2500'
+# dataset_name = 'german_socio_eco'
+dataset_name = 'mushroom_3000'
+embedding_name = 'tsne'
 
-infoclus = InfoClus(DATA_SET_NAME, RELATIVE_DATA_PATH)
-# infoclus.optimise()
+infoclus_object_path = os.path.join(ROOT_DIR, 'data', dataset_name, f'{dataset_name}_{embedding_name}.pkl')
+if_exists = os.path.exists(infoclus_object_path)
+if if_exists:
+    with open(os.path.join(infoclus_object_path), 'rb') as f:
+        infoclus = pickle.load(f)
+else:
+    infoclus = InfoClus(dataset_name=dataset_name, main_emb=embedding_name)
+infoclus.optimise()
+
+# print(__file__)
+# print(os.path.abspath(__file__))
+# print(os.path.dirname(os.path.abspath(__file__)))
 

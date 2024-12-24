@@ -13,10 +13,12 @@ from sklearn.cluster import AgglomerativeClustering
 from adata_utils import generate_adata
 from caching import from_cache, to_cache
 from infoclus_utils import kl_gaussian, kl_bernoulli
-
+from src.utils import get_git_root
 
 RUNTIME_OPTIONS = [0.01, 0.5, 1, 5, 10, 30, 60, 180, 300, 600, 1800, 3600, np.inf]
 
+ROOT = get_git_root()
+DATA_FOLDER = os.path.join(ROOT, 'data')
 
 class InfoClus:
     '''
@@ -40,7 +42,7 @@ class InfoClus:
 
     ######################################## step 1: initialization ########################################
     # todo: allow using .pkl to do initialization
-    def __init__(self, dataset_name: str, relative_data_path: str,
+    def __init__(self, dataset_name: str, relative_data_path: str = None,
                  main_emb: str = 'tsne',
                  model = AgglomerativeClustering(linkage='single', distance_threshold=0, n_clusters=None),
                  alpha: int = None, beta: float = 1.5, min_att: int = 2, max_att: int = 10, runtime_id: int = 3
@@ -60,7 +62,7 @@ class InfoClus:
         :param model: the pre-clustering model to be used to offer candidate clusters
         '''
         self.name = dataset_name
-        self.relative_data_path = relative_data_path
+        self.dataset_folder = os.path.join(DATA_FOLDER, dataset_name)
         self.emb_name = main_emb
         self.model = model
         self.beta = beta
@@ -69,10 +71,10 @@ class InfoClus:
         self.runtime_id = runtime_id
         self.runtime = RUNTIME_OPTIONS[runtime_id]
         # TODO: check if self_cache_path is correct
-        self.cache_path = os.path.join(self.relative_data_path, self.name, 'cache')
+        self.cache_path = os.path.join(self.dataset_folder, 'cache')
 
         #################################### step1: generate adata #########################################
-        self.adata = generate_adata(self.relative_data_path, self.name)
+        self.adata = generate_adata(self.dataset_folder, self.name)
 
         if alpha is None:
             self.alpha = int(self.adata.n_obs/10)
@@ -369,6 +371,8 @@ class InfoClus:
         print("SI: ", self._si_opt)
         self.update_adata()
 
+        return self._clustering_opt, self.embedding
+
     ######################################## step 3: run InfoClus ########################################
     def _run_infoclus(self):
         '''
@@ -659,13 +663,19 @@ class InfoClus:
     def update_adata(self):
         
         import anndata as ad
-        file_name = os.path.join(self.relative_data_path, self.name, self.name)
-        adata = ad.read_h5ad(f'{file_name}.h5ad')
+        file_name = os.path.join(self.dataset_folder, f'{self.name}.h5ad')
+        adata = ad.read_h5ad(file_name)
 
         adata.obs['infoclus_clustering'] = self._clustering_opt
         adata.uns['InfoClus'] = {}
         adata.uns['InfoClus']['si'] = self._si_opt
         adata.uns['InfoClus']['main_emb'] = self.emb_name
+        adata.uns['InfoClus']['hyperparameters'] = {}
+        adata.uns['InfoClus']['hyperparameters']['alpha'] = self.alpha
+        adata.uns['InfoClus']['hyperparameters']['beta'] = self.beta
+        adata.uns['InfoClus']['hyperparameters']['mina'] = self.min_att
+        adata.uns['InfoClus']['hyperparameters']['maxa'] = self.max_att
+        adata.uns['InfoClus']['hyperparameters']['runid'] = self.runtime_id
         for cluster in range(self._clusterlabel_max+1):
             # todo: decide whether to store statitics based on raw data instead of scaled data
             adata.uns['InfoClus'][f'cluster_{cluster}'] = {}
@@ -676,5 +686,5 @@ class InfoClus:
             adata.uns['InfoClus'][f'cluster_{cluster}']['attributes'] = self._attributes_opt[cluster]
         adata.var['prior_mean'] = self._priors[:,0]
         adata.var['prior_var'] = self._priors[:,1]
-        adata.write(f'{file_name}.h5ad')
-        print(f'update {self.name}.h5ad successfully')
+        adata.write(file_name)
+        print(f'update {file_name} successfully')
