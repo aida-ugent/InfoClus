@@ -7,7 +7,6 @@ from dash.dependencies import Input, Output, State
 from layout import *
 from src.frontend_dash.layout import ROOT_DIR
 from utils import *
-from src.si import ExclusOptimiser, RUNTIME_OPTIONS
 from src.utils import load_data, get_git_root
 from src.infoclus import InfoClus
 
