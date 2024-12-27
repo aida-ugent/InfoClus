@@ -1,5 +1,5 @@
 import pickle
-
+import subprocess
 import plotly.express as px
 import numpy as np
 import pandas as pd
@@ -8,14 +8,27 @@ import plotly.graph_objects as go
 import yaml
 import sys, os
 
+def get_root():
+    try:
+        root = subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"],
+            universal_newlines=True
+        ).strip()
+        return root
+    except subprocess.CalledProcessError:
+        raise RuntimeError("This directory is not a Git repository.")
+ROOT_DIR = get_root()
+sys.path.append(ROOT_DIR)
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# sys.path.append(os.path.join(ROOT_DIR, "src", "frontend_dash"))
+
 from dash import dcc
 from dash import html
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.utils import get_git_root
 from src.infoclus import InfoClus
 from sklearn.neighbors import KernelDensity
 
-ROOT_DIR = get_git_root()
+
 RUNTIME_MARKERS = ["0.01s", "0.5s", "1s", "5s", "10s", "30s", "1m","3m", "5m", "10m", "30m", "1h"]
 
 SIDEBAR_STYLE = {

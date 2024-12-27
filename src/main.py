@@ -1,10 +1,22 @@
 import os
 import pickle
-from src.infoclus import InfoClus
-from src.frontend_dash.utils import check_infoclus_object
+import sys
+import subprocess
+from infoclus import InfoClus
 from utils import get_git_root
 
-ROOT_DIR = get_git_root()
+def get_root():
+    try:
+        root = subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"],
+            universal_newlines=True
+        ).strip()
+        return root
+    except subprocess.CalledProcessError:
+        raise RuntimeError("This directory is not a Git repository.")
+ROOT_DIR = get_root()
+sys.path.append(ROOT_DIR)
+sys.path.append(os.path.join(ROOT_DIR, "src"))
 
 # dataset_name = 'cytometry_2500'
 # dataset_name = 'german_socio_eco'

@@ -12,7 +12,7 @@ import math
 from sklearn.cluster import AgglomerativeClustering
 from caching import from_cache, to_cache
 import infoclus_utils as utils
-from src.utils import get_git_root
+from utils import get_git_root
 
 RUNTIME_OPTIONS = [0.01, 0.5, 1, 5, 10, 30, 60, 180, 300, 600, 1800, 3600, np.inf]
 VAR_TPYE_THRESHOLD = 20
