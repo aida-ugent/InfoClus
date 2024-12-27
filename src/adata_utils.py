@@ -20,68 +20,68 @@ VAR_TYPR_DICT = {'numeric': 1, 'categorical': 2}
 #     # if the variable is numeric, it is considered 2, if it is categorical, it is considered as the count of distinct values
 #     return var['var_type'].apply(lambda x: 2 if x == 'numeric' else len(var['var_type'].unique()))
 
-def get_var_type_complexity(data: pd.DataFrame) -> pd.DataFrame:
-    data_var_type_complexity = pd.DataFrame(columns=['var_type', 'var_complexity'])
-    if 'var_type' in data.columns:
-        if type(data['var_type']) == object:
-            data_var_type_complexity['var_type'] = data['var_type'].map(VAR_TYPR_DICT)
-        if type(data['var_complexity']) == int:
-            data_var_type_complexity['var_type'] = data['var_type']
-        for col_idx, var_type in enumerate(data['var_type']):
-            if var_type == 'numeric':
-                data_var_type_complexity.loc[col_idx, 'var_complexity'] = 2
-            elif var_type == 'categorical':
-                # 计算第 col_idx 列的不同取值数量
-                column_data = data.iloc[:, col_idx]
-                data_var_type_complexity.loc[col_idx, 'var_complexity'] = column_data.nunique()
-            else:
-                print('ERROR! Unknown var_type {}'.format(var_type))
-                data_var_type_complexity.loc[col_idx, 'var_complexity'] = None
-    else:
-        for col_idx, col_name in enumerate(data.columns):
-            col_data = data.iloc[:, col_idx]
-            distinct_counts = col_data.nunique()
-            if distinct_counts > VAR_TPYE_THRESHOLD:
-                data_var_type_complexity.loc[col_idx, 'var_type'] = VAR_TYPR_DICT['numeric']
-                data_var_type_complexity.loc[col_idx, 'var_complexity'] = 2
-            else:
-                data_var_type_complexity.loc[col_idx, 'var_type'] = VAR_TYPR_DICT['categorical']
-                data_var_type_complexity.loc[col_idx, 'var_complexity'] = distinct_counts
-    return data_var_type_complexity
+# def get_var_type_complexity(data: pd.DataFrame) -> pd.DataFrame:
+#     data_var_type_complexity = pd.DataFrame(columns=['var_type', 'var_complexity'])
+#     if 'var_type' in data.columns:
+#         if type(data['var_type']) == object:
+#             data_var_type_complexity['var_type'] = data['var_type'].map(VAR_TYPR_DICT)
+#         if type(data['var_complexity']) == int:
+#             data_var_type_complexity['var_type'] = data['var_type']
+#         for col_idx, var_type in enumerate(data['var_type']):
+#             if var_type == 'numeric':
+#                 data_var_type_complexity.loc[col_idx, 'var_complexity'] = 2
+#             elif var_type == 'categorical':
+#                 # 计算第 col_idx 列的不同取值数量
+#                 column_data = data.iloc[:, col_idx]
+#                 data_var_type_complexity.loc[col_idx, 'var_complexity'] = column_data.nunique()
+#             else:
+#                 print('ERROR! Unknown var_type {}'.format(var_type))
+#                 data_var_type_complexity.loc[col_idx, 'var_complexity'] = None
+#     else:
+#         for col_idx, col_name in enumerate(data.columns):
+#             col_data = data.iloc[:, col_idx]
+#             distinct_counts = col_data.nunique()
+#             if distinct_counts > VAR_TPYE_THRESHOLD:
+#                 data_var_type_complexity.loc[col_idx, 'var_type'] = VAR_TYPR_DICT['numeric']
+#                 data_var_type_complexity.loc[col_idx, 'var_complexity'] = 2
+#             else:
+#                 data_var_type_complexity.loc[col_idx, 'var_type'] = VAR_TYPR_DICT['categorical']
+#                 data_var_type_complexity.loc[col_idx, 'var_complexity'] = distinct_counts
+#     return data_var_type_complexity
 
-def get_scaled_data(data: pd.DataFrame) -> pd.DataFrame:
-    """
-    Preprocesses the input DataFrame:
-    - Standardizes numeric columns using StandardScaler.
-    - Encodes categorical columns (string type) into integers using factorize,
-      and then applies StandardScaler to the encoded values.
-
-    Parameters:
-        data (pd.DataFrame): Input data containing numeric and categorical columns.
-
-    Returns:
-        pd.DataFrame: Transformed data with standardized numeric columns
-                      and scaled categorical columns.
-    """
-    # Initialize an empty DataFrame to store processed data
-    processed_data = pd.DataFrame()
-
-    for col in data.columns:
-        if data[col].dtype == 'object':  # Check if the column is of string type
-            # Use factorize to map strings to unique integers
-            data[col], _ = pd.factorize(data[col])
-            # Scale the encoded integers using StandardScaler
-            scaler = StandardScaler()
-            processed_data[col] = scaler.fit_transform(data[col].values.reshape(-1, 1)).flatten()
-        elif pd.api.types.is_numeric_dtype(data[col]):  # Check if the column is numeric
-            # Use StandardScaler to standardize numeric columns
-            scaler = StandardScaler()
-            processed_data[col] = scaler.fit_transform(data[[col]])
-        else:
-            # Raise an error for unsupported data types
-            raise ValueError(f"Unsupported data type in column {col}")
-
-    return data, processed_data
+# def get_scaled_data(data: pd.DataFrame) -> pd.DataFrame:
+#     """
+#     Preprocesses the input DataFrame:
+#     - Standardizes numeric columns using StandardScaler.
+#     - Encodes categorical columns (string type) into integers using factorize,
+#       and then applies StandardScaler to the encoded values.
+#
+#     Parameters:
+#         data (pd.DataFrame): Input data containing numeric and categorical columns.
+#
+#     Returns:
+#         pd.DataFrame: Transformed data with standardized numeric columns
+#                       and scaled categorical columns.
+#     """
+#     # Initialize an empty DataFrame to store processed data
+#     processed_data = pd.DataFrame()
+#
+#     for col in data.columns:
+#         if data[col].dtype == 'object':  # Check if the column is of string type
+#             # Use factorize to map strings to unique integers
+#             data[col], _ = pd.factorize(data[col])
+#             # Scale the encoded integers using StandardScaler
+#             scaler = StandardScaler()
+#             processed_data[col] = scaler.fit_transform(data[col].values.reshape(-1, 1)).flatten()
+#         elif pd.api.types.is_numeric_dtype(data[col]):  # Check if the column is numeric
+#             # Use StandardScaler to standardize numeric columns
+#             scaler = StandardScaler()
+#             processed_data[col] = scaler.fit_transform(data[[col]])
+#         else:
+#             # Raise an error for unsupported data types
+#             raise ValueError(f"Unsupported data type in column {col}")
+#
+#     return data, processed_data
 
 
 def generate_adata(dataset_folder: str, dataset_name: str):

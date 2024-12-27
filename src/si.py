@@ -375,6 +375,7 @@ class ExclusOptimiser:
 
     def kl_categorical(self, distribution_cluster: np.ndarray, epsilon: float = 0.00001) -> np.ndarray:
         # kl(p||q) = kl(cluster||prior)
+        # kl(p||q) = kl(cluster||prior)
 
         p = copy.copy(distribution_cluster)
         q = copy.copy(self._priors.values)

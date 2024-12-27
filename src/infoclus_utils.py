@@ -1,5 +1,12 @@
 import copy
 import numpy as np
+import pandas as pd
+
+from typing import Dict
+from sklearn.discriminant_analysis import StandardScaler
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
+
 
 def kl_gaussian(m1, s1, m2, s2, epsilon=0.00001):
     # kl(custer||prior)
@@ -16,7 +23,6 @@ def kl_gaussian(m1, s1, m2, s2, epsilon=0.00001):
     a[zeros_std2] = 0
     b = (std1 ** 2 + (mean1 - mean2) ** 2) / (2 * std2 ** 2)
     return a + b - 1 / 2
-
 
 def kl_bernoulli(p_value, q_value, epsilon=0.00001):
 
@@ -52,4 +58,83 @@ def kl_bernoulli(p_value, q_value, epsilon=0.00001):
 
     return a + b
 
+def get_scaled_data(data: pd.DataFrame, replace_nan: float) -> pd.DataFrame:
+    """
+    Preprocesses the input DataFrame:
+    - Standardizes numeric columns using StandardScaler.
+    - Encodes categorical columns (string type) into integers using factorize,
+      and then applies StandardScaler to the encoded values.
+
+    Parameters:
+        data (pd.DataFrame): Input data containing numeric and categorical columns.
+
+    Returns:
+        pd.DataFrame: Transformed data with standardized numeric columns
+                      and scaled categorical columns.
+    """
+    # replace nan to replace_nan
+    data = data.fillna(0)
+    # Initialize an empty DataFrame to store processed data
+    factorized_data = None
+    ls_mapping_chain_by_col = None
+    scaled_data = pd.DataFrame()
+
+    for col in data.columns:
+        col_data = data[col].values
+        if col_data.dtype == 'object':  # Check if the column is of string type
+            if factorized_data is None and ls_mapping_chain_by_col is None:
+                factorized_data = pd.DataFrame()
+                ls_mapping_chain_by_col = []
+            df_mapping = pd.DataFrame(columns=['raw', 'factorized', 'scaled'])
+            unique_values = list(set(col_data.tolist()))
+            df_mapping['raw'] = unique_values
+            factorized_data[col], uniques = pd.factorize(col_data)
+            df_mapping['factorized'] = [np.where(uniques == value)[0][0] for value in df_mapping['raw']]
+            scaler = StandardScaler()
+            scaled_data[col] = scaler.fit_transform(factorized_data[col].values.reshape(-1, 1)).flatten()
+            mapping = {factorized: scaled for factorized, scaled in zip(factorized_data[col], scaled_data[col])}
+            df_mapping['scaled'] = df_mapping['factorized'].map(mapping)
+            ls_mapping_chain_by_col.append(df_mapping)
+
+        elif pd.api.types.is_numeric_dtype(col_data):  # Check if the column is numeric
+            scaler = StandardScaler()
+            scaled_data[col] = scaler.fit_transform(data[[col]].values.reshape(-1, 1)).flatten()
+        else:
+            # Raise an error for unsupported data types
+            raise ValueError(f"Unsupported data type in column {col}")
+        scaled_data = pd.DataFrame(data=scaled_data,columns = data.columns)
+    return factorized_data, ls_mapping_chain_by_col, scaled_data, data
+
+def get_embeddings(data_array: np.ndarray) -> Dict[str, np.ndarray]:
+    embeddings_dict = {}
+    tsne = TSNE(n_components=2)
+    embeddings_dict['tsne'] = tsne.fit_transform(data_array)
+    pca = PCA(n_components=2)
+    embeddings_dict['pca'] = pca.fit_transform(data_array)
+    return embeddings_dict
+
+def get_var_type_complexity(data: pd.DataFrame, var_type_threshold: int) -> pd.DataFrame:
+    data_var_type_complexity = pd.DataFrame(columns=['var_type', 'var_complexity'])
+    if 'var_type' in data.columns:
+        data_var_type_complexity['var_type'] = data['var_type']
+        for col_idx, var_type in enumerate(data['var_type']):
+            if var_type == 'numeric':
+                data_var_type_complexity.loc[col_idx, 'var_complexity'] = 2
+            elif var_type == 'categorical':
+                column_data = data.iloc[:, col_idx]
+                data_var_type_complexity.loc[col_idx, 'var_complexity'] = column_data.nunique()
+            else:
+                print('ERROR! Unknown var_type {}'.format(var_type))
+                data_var_type_complexity.loc[col_idx, 'var_complexity'] = None
+    else:
+        for col_idx, col_name in enumerate(data.columns):
+            col_data = data.iloc[:, col_idx]
+            distinct_counts = col_data.nunique()
+            if distinct_counts > var_type_threshold:
+                data_var_type_complexity.loc[col_idx, 'var_type'] = 'numeric'
+                data_var_type_complexity.loc[col_idx, 'var_complexity'] = 2
+            else:
+                data_var_type_complexity.loc[col_idx, 'var_type'] = 'categorical'
+                data_var_type_complexity.loc[col_idx, 'var_complexity'] = distinct_counts
+    return data_var_type_complexity
 

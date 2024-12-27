@@ -1,11 +1,9 @@
 import os
 import dash
-import pandas as pd
-import anndata as ad
+import pdb
 
 
 from dash.dependencies import Input, Output, State
-from dicts2adata import dicts2adata
 from layout import *
 from src.frontend_dash.layout import ROOT_DIR
 from utils import *
@@ -34,7 +32,7 @@ def register_callbacks(app):
         ctx = dash.callback_context  # 获取当前触发源
         trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
         if trigger_id == 'dataset-select':
-            return config_layout(dataset_name=dataset_name)
+            return config_layout(dataset_name=dataset_name, emb_name='tsne')
         else:
             # todo: add maxAtt into function
             infoclus_object_path = os.path.join(ROOT_DIR,'data', dataset_name, f'{dataset_name}_{embedding_name}.pkl')
@@ -45,31 +43,47 @@ def register_callbacks(app):
             else:
                 infoclus = InfoClus(dataset_name=dataset_name, main_emb=embedding_name)
             infoclus.optimise(alpha=alpha,beta=beta,min_att=minAtt,runtime_id=runtime_id)
-            return config_layout(dataset_name=dataset_name)
+            return config_layout(dataset_name=dataset_name, emb_name=embedding_name)
 
     @app.callback(
         Output('explanation', 'children'),
         Input('cluster-select', 'value'),
         State('dataset-select', 'value'),
+        State('embedding-used-for-clustering', 'value'),
         prevent_initial_call=True
     )
-    def select_cluster_explanation(cluster_id, dataset_name):
-        adata = ad.read_h5ad(os.path.join(ROOT_DIR, 'data', dataset_name, f'{dataset_name}.h5ad'))
+    def select_cluster_explanation(cluster_id, dataset_name, emb_name):
+        file_path = os.path.join(ROOT_DIR, 'data', dataset_name, f'{dataset_name}_{emb_name}.pkl')
+        if os.path.exists(file_path):
+            with open(file_path, 'rb') as f:
+                infoclus = pickle.load(f)
 
-        data = adata.X
-        clustering = adata.obs['infoclus_clustering']
-        att_names = adata.var.index.values
-        attributes = adata.uns['InfoClus'][f'cluster_{cluster_id}']['attributes']
-        ics_cluster = adata.uns['InfoClus'][f'cluster_{cluster_id}']['ic']
-        return config_explanations_kde(data, clustering, attributes, att_names, ics_cluster, cluster_id)
+            data = infoclus.data
+            clustering = infoclus._clustering_opt
+            if clustering is None or len(clustering) == 0:
+                print('error, callbacks.py - line 65')
+            att_names = infoclus.data_raw.columns.values
+            attributes = infoclus._attributes_opt[cluster_id]
+            ics_cluster = np.array(infoclus._ic_opt[cluster_id])
+        else:
+            print(f'Error, {dataset_name}_{emb_name}.pkl does not exist')
+        return config_explanations(infoclus, data, clustering, attributes, att_names, ics_cluster, cluster_id)
 
     # todo: remove all_duplicate, using dash.callback_context
     @app.callback(
         Output('embedding-scatterPlot', 'figure', allow_duplicate=True),
         Input('embedding-select', 'value'),
         State('dataset-select', 'value'),
+        State('embedding-used-for-clustering', 'value'),
         prevent_initial_call=True
     )
-    def select_embedding(embedding_name, dataset_name):
-        adata = ad.read_h5ad(os.path.join(ROOT_DIR, 'data', dataset_name, f'{dataset_name}.h5ad'))
-        return config_scatter_graph(adata,embedding_name)
+    def select_embedding(embedding_name_show, dataset_name, emb_name_comp):
+
+        file_path = os.path.join(ROOT_DIR, 'data', dataset_name, f'{dataset_name}_{emb_name_comp}.pkl')
+        if os.path.exists(file_path):
+            with open(file_path, 'rb') as f:
+                infoclus = pickle.load(f)
+        else:
+            print(f'Error, {dataset_name}_{emb_name_comp}.pkl does not exist')
+
+        return config_scatter_graph(infoclus,embedding_name_show)

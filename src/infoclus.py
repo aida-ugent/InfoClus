@@ -10,12 +10,14 @@ import copy
 import math
 
 from sklearn.cluster import AgglomerativeClustering
-from adata_utils import generate_adata
 from caching import from_cache, to_cache
-from infoclus_utils import kl_gaussian, kl_bernoulli
+import infoclus_utils as utils
 from src.utils import get_git_root
 
 RUNTIME_OPTIONS = [0.01, 0.5, 1, 5, 10, 30, 60, 180, 300, 600, 1800, 3600, np.inf]
+VAR_TPYE_THRESHOLD = 20
+REPLACE_NAN = 0
+EPSILON= 0.00001
 
 ROOT = get_git_root()
 DATA_FOLDER = os.path.join(ROOT, 'data')
@@ -30,26 +32,19 @@ class InfoClus:
         2. optimise: either run InfoClus or read from cache
         3. run InfoClus (optional)
 
-        Attributes:
-        name: name of the dataset
-        relative_data_path: the path to the data folder
-        emb_name: the embedding to be used for clustering
-        model: the pre-clustering model to be used to offer candidate clusters
-
-        adata: the adata object that contains the dataset and some related information
+        save object to pickle file
 
     '''
 
     ######################################## step 1: initialization ########################################
-    # todo: allow using .pkl to do initialization
-    def __init__(self, dataset_name: str, relative_data_path: str = None,
+    def __init__(self, dataset_name: str, data_folder: str = None,
                  main_emb: str = 'tsne',
                  model = AgglomerativeClustering(linkage='single', distance_threshold=0, n_clusters=None),
                  alpha: int = None, beta: float = 1.5, min_att: int = 2, max_att: int = 10, runtime_id: int = 3
                  ):
         '''
         The initialization will 
-        1. obtain preliminary processed information (like embeddings) and save it in adata file
+        1. obtain preliminary processed information (like embeddings)
         2. further process information.
             2.1 train model to get agglomerative clustering
             2.2 get linkage matrix and calculate the distribution of each node, 
@@ -57,37 +52,45 @@ class InfoClus:
             2.3 prior information computation
 
         :param name: name of the dataset
-        :param relative_data_path: the path to the data folder
+        :param data_folder: the path to the data folder
         :param main_emb: the embedding type to be used for clustering
         :param model: the pre-clustering model to be used to offer candidate clusters
         '''
         self.name = dataset_name
-        self.dataset_folder = os.path.join(DATA_FOLDER, dataset_name)
+        if data_folder is None:
+            self.dataset_folder = os.path.join(DATA_FOLDER, dataset_name)
+        else:
+            self.dataset_folder = data_folder
         self.emb_name = main_emb
         self.model = model
         self.beta = beta
+        self.epsilon = EPSILON
         self.min_att = min_att
         self.max_att = max_att
         self.runtime_id = runtime_id
         self.runtime = RUNTIME_OPTIONS[runtime_id]
-        # TODO: check if self_cache_path is correct
         self.cache_path = os.path.join(self.dataset_folder, 'cache')
 
-        #################################### step1: generate adata #########################################
-        self.adata = generate_adata(self.dataset_folder, self.name)
-
+        #################################### step1: obtain preliminary processed information (like embeddings) #########################################
+        df_data = pd.read_csv(os.path.join(self.dataset_folder, f'{self.name}.csv'))
+        factorized_data, ls_mapping_chain_by_col, self.data_scaled, self.data_raw = utils.get_scaled_data(df_data, REPLACE_NAN)
+        if factorized_data is not None and ls_mapping_chain_by_col is not None:
+            self.factorized_data = factorized_data
+            self.ls_mapping_chain_by_col = ls_mapping_chain_by_col
+        self.data = self.data_scaled.values
         if alpha is None:
-            self.alpha = int(self.adata.n_obs/10)
+            self.alpha = int(len(self.data)/10)
         else:
             self.alpha = alpha
-        self.data_raw = pd.DataFrame(self.adata.layers['raw_data'], columns=self.adata.var_names)
-        self.data_scaled = pd.DataFrame(self.adata.layers['scaled_data'], columns=self.adata.var_names)
-        self.data = self.data_scaled.values
-        self.embedding = self.adata.obsm[self.emb_name]
-        # TODO: check the type of self.var_type
+        self.all_embeddings = utils.get_embeddings(self.data)
+        if self.emb_name not in self.all_embeddings.keys():
+            print('Error! embedding not found!')
+        else:
+            self.embedding = self.all_embeddings[self.emb_name]
         # TODO: change name of _dls to be more cohesive with the code
-        self.var_type = self.adata.var['var_type']
-        self._dls = self.adata.var['var_complexity']
+        df_var_type_complexity = utils.get_var_type_complexity(self.data_raw, VAR_TPYE_THRESHOLD)
+        self.var_type = df_var_type_complexity['var_type']
+        self._dls = df_var_type_complexity['var_complexity']
         if len(self.var_type.unique()) > 1:
             self.global_var_type = 'mixed'
         else:
@@ -98,6 +101,7 @@ class InfoClus:
         self._prior_dataset = None
         self._nodesToPoints = {}
         if self.global_var_type == 'mixed':
+            print("Error! mixed variables are not supported yet!")
             pass
         elif self.global_var_type == 'numeric':
             self._meansForNodes = {}
@@ -111,12 +115,6 @@ class InfoClus:
         self._fit_model()
         self._create_linkage() 
         self._calc_priors()
-
-        folder_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', f'{self.name}')
-        file_name = f'{self.name}_{self.emb_name}.pkl'
-        file_path = os.path.join(folder_path, file_name)
-        with open(file_path, "wb") as file:
-            pickle.dump(self, file)
 
         print('initialization done')
 
@@ -133,25 +131,13 @@ class InfoClus:
         n_samples = len(self.model.labels_)
         parents = np.full(self.model.children_.shape[0], -1)
 
-        # initialize possible values of all attributes
-        for column in self.data_scaled.columns:
-            if self.global_var_type == 'mixed':
-                pass
-            elif self.global_var_type == 'categorical':
-                possible_values = list(self.data_scaled[column].factorize()[1])
-                self._valuesOfAttributes.append({value: index for index, value in enumerate(possible_values)})
-                if len(possible_values) > self._maxValuesOfAttributes:
-                    self._maxValuesOfAttributes = len(possible_values)
-
         # build empty distribution
-        if self.global_var_type == 'mixed':
-            pass
-        elif self.global_var_type == 'categorical':
-            np_data = np.zeros((self._maxValuesOfAttributes, self.data.columns.size))
-            a = np.array([len(df) for df in self._valuesOfAttributes])
-            mask = np.arange(np_data.shape[0])[:, None] >= a
+        if self.global_var_type == 'categorical':
+            count_of_uniques_per_attribute = [len(df) for df in self.ls_mapping_chain_by_col]
+            np_data = np.zeros((max(count_of_uniques_per_attribute), len(self.data_raw.columns)))
+            mask = np.arange(np_data.shape[0])[:, None] >= np.array(count_of_uniques_per_attribute)
             np_data[mask] = self.epsilon
-            empty_distribution = pd.DataFrame(np_data, columns=self.data.columns)
+            empty_distribution = pd.DataFrame(np_data, columns=self.data_raw.columns)
 
         # for each merge in agglomerative clustering, do computation
         for i, merge in enumerate(self.model.children_):
@@ -173,9 +159,9 @@ class InfoClus:
                 elif self.global_var_type == 'categorical':
                     left_point = self.data_scaled.iloc[left_child]
                     m_left = empty_distribution.copy()
-                    for j_column in range(self._targetsLen):
+                    for j_column in range(len(self.data_raw.columns)):
                         att_value = left_point.values[j_column]
-                        i_row = self._valuesOfAttributes[j_column].get(att_value)
+                        i_row = self.ls_mapping_chain_by_col[j_column].loc[self.ls_mapping_chain_by_col[j_column]['scaled'] == att_value].index[0]
                         m_left.iloc[i_row, j_column] = 1
                 leafPoints.append(left_child)
             else:
@@ -203,9 +189,9 @@ class InfoClus:
                 elif self.global_var_type == 'categorical':
                     right_point = self.data_scaled.iloc[right_child]
                     m_right = empty_distribution.copy()
-                    for j_column in range(self._targetsLen):
+                    for j_column in range(len(self.data_raw.columns)):
                         att_value = right_point.values[j_column]
-                        i_row = self._valuesOfAttributes[j_column].get(att_value)
+                        i_row = self.ls_mapping_chain_by_col[j_column].loc[self.ls_mapping_chain_by_col[j_column]['scaled'] == att_value].index[0]
                         m_right.iloc[i_row, j_column] = 1
                 leafPoints.append(right_child)
             else:
@@ -245,9 +231,9 @@ class InfoClus:
         if self.global_var_type == 'mixed':
             pass
         elif self.global_var_type == 'numeric':
-            self._priors = np.array([self._meansForNodes[self.adata.n_obs - 2], self._varsForNodes[self.adata.n_obs - 2]]).T
-            self._priorsGausM = self._meansForNodes[self.adata.n_obs - 2]
-            self._priorsGausS = self._varsForNodes[self.adata.n_obs - 2]
+            self._priors = np.array([self._meansForNodes[len(self.data) - 2], self._varsForNodes[len(self.data) - 2]]).T
+            self._priorsGausM = self._meansForNodes[len(self.data) - 2]
+            self._priorsGausS = self._varsForNodes[len(self.data) - 2]
             # Order attribute indices per dl to use later in dl optimisation
             unique_dls = sorted(set(self._dls))
             # Attributes indices split per dl, used to split IC into submatrix and later to find IC value of attribute
@@ -257,7 +243,7 @@ class InfoClus:
                 indices = [i for i, value in enumerate(self._dls) if value == dl]
                 self._dl_indices[dl] = indices
         elif self.global_var_type == 'categorical':
-            self._priors = self._distributionsForNodes[self.adata.n_obs - 2]
+            self._priors = self._distributionsForNodes[len(self.data) - 2]
 
     # TODO: remove all recur functions to another file, because they are not related to the class
     def recur_mean(self, mean1, count1, mean2, count2):
@@ -312,21 +298,34 @@ class InfoClus:
             pass
         elif self.global_var_type == 'categorical':
             means_binary_cluster = means_cluster
-            ic1 = n_samples * kl_bernoulli(means_binary_cluster, self._priorsBernM)
+            ic1 = n_samples * utils.kl_bernoulli(means_binary_cluster, self._priorsBernM)
             cluster_ic.extend(ic1)
         elif self.global_var_type == 'numeric':
             means_gaussian_cluster = means_cluster
             stds_gaussian_cluster = stds_cluster
-            ic2 = n_samples * kl_gaussian(means_gaussian_cluster, stds_gaussian_cluster,
+            ic2 = n_samples * utils.kl_gaussian(means_gaussian_cluster, stds_gaussian_cluster,
                                                                    self._priorsGausM,
                                                                    self._priorsGausS)
             cluster_ic.extend(ic2)
 
         return cluster_ic
 
-    # todo: not revised yet
+    def kl_categorical(self, distribution_cluster: np.ndarray, epsilon: float = 0.00001) -> np.ndarray:
+        # kl(p||q) = kl(cluster||prior)
+        # kl(p||q) = kl(cluster||prior)
+
+        p = copy.copy(distribution_cluster)
+        q = copy.copy(self._priors.values)
+        p_safe = np.where(p <= 0, epsilon, p)
+
+        kl_mid_value = p * np.log(p_safe/q)
+        kl = np.sum(kl_mid_value, axis=0)
+
+        return kl
+
+    # todo: not revised yet, delete or remove kl_categorical to other places
     def ic_categorical(self, distribution_cluster: pd.DataFrame, size_cluster: int) -> np.ndarray:
-        ic = (size_cluster ** self._samplesWeight) * self.kl_categorical(distribution_cluster.values)
+        ic = size_cluster * self.kl_categorical(distribution_cluster.values)
         return ic
 
     ######################################## step 2: optimise: either run InfoClus or read from cache ########################################
@@ -347,6 +346,8 @@ class InfoClus:
             self.min_att = min_att
         if max_att is not None:
             self.max_att = max_att
+        if runtime_id is not None:
+            self.runtime_id = runtime_id
         self.runtime = RUNTIME_OPTIONS[runtime_id]
 
         # check cache
@@ -357,6 +358,9 @@ class InfoClus:
             self._res_in_brief = ''
             self._run_infoclus()
             self.create_cache_version(cache_name)
+        file_path = os.path.join(self.dataset_folder, f'{self.name}_{self.emb_name}.pkl')
+        with open(file_path, "wb") as file:
+            pickle.dump(self, file)
 
         print(f'\nInfoClus - Dataset: {self.name} Emb: {self.emb_name} Alpha: {self.alpha} Beta: {self.beta} Ref. Runtime: {self.runtime}')
         print(f'Count of Clusters: {len(set(self._clustering_opt))}')
@@ -369,7 +373,7 @@ class InfoClus:
                 print(f'{self.data_raw.columns[j]} ', end='')
             print("")
         print("SI: ", self._si_opt)
-        self.update_adata()
+
 
         return self._clustering_opt, self.embedding
 
@@ -659,32 +663,32 @@ class InfoClus:
             self._res_in_brief = previously_calculated["res_in_brief"]
         return cache_name, previously_calculated
 
-    # TODO: rename the variables in adata to match frontend
-    def update_adata(self):
-        
-        import anndata as ad
-        file_name = os.path.join(self.dataset_folder, f'{self.name}.h5ad')
-        adata = ad.read_h5ad(file_name)
-
-        adata.obs['infoclus_clustering'] = self._clustering_opt
-        adata.uns['InfoClus'] = {}
-        adata.uns['InfoClus']['si'] = self._si_opt
-        adata.uns['InfoClus']['main_emb'] = self.emb_name
-        adata.uns['InfoClus']['hyperparameters'] = {}
-        adata.uns['InfoClus']['hyperparameters']['alpha'] = self.alpha
-        adata.uns['InfoClus']['hyperparameters']['beta'] = self.beta
-        adata.uns['InfoClus']['hyperparameters']['mina'] = self.min_att
-        adata.uns['InfoClus']['hyperparameters']['maxa'] = self.max_att
-        adata.uns['InfoClus']['hyperparameters']['runid'] = self.runtime_id
-        for cluster in range(self._clusterlabel_max+1):
-            # todo: decide whether to store statitics based on raw data instead of scaled data
-            adata.uns['InfoClus'][f'cluster_{cluster}'] = {}
-            adata.uns['InfoClus'][f'cluster_{cluster}']['mean'] = self._clustersRelatedInfo[cluster][0]
-            adata.uns['InfoClus'][f'cluster_{cluster}']['var'] = self._clustersRelatedInfo[cluster][1]
-            adata.uns['InfoClus'][f'cluster_{cluster}']['count'] = self._clustersRelatedInfo[cluster][2]
-            adata.uns['InfoClus'][f'cluster_{cluster}']['ic'] = np.array(self._ic_opt[cluster])
-            adata.uns['InfoClus'][f'cluster_{cluster}']['attributes'] = self._attributes_opt[cluster]
-        adata.var['prior_mean'] = self._priors[:,0]
-        adata.var['prior_var'] = self._priors[:,1]
-        adata.write(file_name)
-        print(f'update {file_name} successfully')
+    # # TODO: rename the variables in adata to match frontend
+    # def update_adata(self):
+    #
+    #     import anndata as ad
+    #     file_name = os.path.join(self.dataset_folder, f'{self.name}.h5ad')
+    #     adata = ad.read_h5ad(file_name)
+    # inf
+    #     adata.obs['infoclus_clustering'] = self._clustering_opt
+    #     adata.uns['InfoClus'] = {}
+    #     adata.uns['InfoClus']['si'] = self._si_opt
+    #     adata.uns['InfoClus']['main_emb'] = self.emb_name
+    #     adata.uns['InfoClus']['hyperparameters'] = {}
+    #     adata.uns['InfoClus']['hyperparameters']['alpha'] = self.alpha
+    #     adata.uns['InfoClus']['hyperparameters']['beta'] = self.beta
+    #     adata.uns['InfoClus']['hyperparameters']['mina'] = self.min_att
+    #     adata.uns['InfoClus']['hyperparameters']['maxa'] = self.max_att
+    #     adata.uns['InfoClus']['hyperparameters']['runid'] = self.runtime_id
+    #     for cluster in range(self._clusterlabel_max+1):
+    #         # todo: decide whether to store statitics based on raw data instead of scaled data
+    #         adata.uns['InfoClus'][f'cluster_{cluster}'] = {}
+    #         adata.uns['InfoClus'][f'cluster_{cluster}']['mean'] = self._clustersRelatedInfo[cluster][0]
+    #         adata.uns['InfoClus'][f'cluster_{cluster}']['var'] = self._clustersRelatedInfo[cluster][1]
+    #         adata.uns['InfoClus'][f'cluster_{cluster}']['count'] = self._clustersRelatedInfo[cluster][2]
+    #         adata.uns['InfoClus'][f'cluster_{cluster}']['ic'] = np.array(self._ic_opt[cluster])
+    #         adata.uns['InfoClus'][f'cluster_{cluster}']['attributes'] = self._attributes_opt[cluster]
+    #     adata.var['prior_mean'] = self._priors[:,0]
+    #     adata.var['prior_var'] = self._priors[:,1]
+    #     adata.write(file_name)
+    #     print(f'update {file_name} successfully')

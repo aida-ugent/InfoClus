@@ -1,4 +1,4 @@
-from calendar import error
+import pickle
 
 import plotly.express as px
 import numpy as np
@@ -6,16 +6,14 @@ import pandas as pd
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 import yaml
-import anndata as ad
-from scipy.stats import gaussian_kde
-from sklearn.neighbors import KernelDensity
 import sys, os
 
 from dash import dcc
 from dash import html
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from src.caching import from_cache
 from src.utils import get_git_root
+from src.infoclus import InfoClus
+from sklearn.neighbors import KernelDensity
 
 ROOT_DIR = get_git_root()
 RUNTIME_MARKERS = ["0.01s", "0.5s", "1s", "5s", "10s", "30s", "1m","3m", "5m", "10m", "30m", "1h"]
@@ -26,10 +24,14 @@ SIDEBAR_STYLE = {
     # "width": "fit-content"
 }
 
+top_bar_style={'display': 'inline-block', 'padding': '5px 10px',
+                                                   'background-color': '#e0e0e0', 'border-radius': '5px',
+                                                   'font-size': '14px', 'margin-right': '10px'}
+
 KERNALS = ["gaussian", "tophat", "epanechnikov"]
 KERNAL = KERNALS[0]
 
-def get_kde(data_att: np.ndarray, cluster_att: np.ndarray, att_name: str):
+def get_kde(data_att: np.ndarray, cluster_att: np.ndarray):
     """
     :return: return kernal desity estimation of one attribute for a cluster
     """
@@ -61,27 +63,70 @@ def get_kde(data_att: np.ndarray, cluster_att: np.ndarray, att_name: str):
 
     return fig
 
+def get_barchart(infoclus: InfoClus, att_id: int, cluster_id: int):
 
-def config_scatter_graph(adata: ad.AnnData, emb_name: str = None):
+    df_mapping_chain = infoclus.ls_mapping_chain_by_col[att_id]
+    real_labels = df_mapping_chain.iloc[:,0]
+    nuniques = len(df_mapping_chain)
+    dist_of_fixed_cluster_att = infoclus._clustersRelatedInfo[cluster_id][0].iloc[:nuniques, att_id].values
+    dist_of_att_in_data = infoclus._priors.iloc[:nuniques, att_id].values
+
+    dist_pre_cluster_att = pd.Series(dist_of_fixed_cluster_att, index=real_labels)
+    dist_prior_per_att = pd.Series(dist_of_att_in_data, index=real_labels)
+    sorted_dist_pre_cluster_att = dist_pre_cluster_att.sort_values(ascending=False)
+    sorted_dist_prior_per_att = dist_prior_per_att.loc[sorted_dist_pre_cluster_att.index]
+    sorted_labels = sorted_dist_pre_cluster_att.index
+    sorted_distribution = []
+    types = []
+    group_labels = []
+    for label in sorted_labels:
+        sorted_distribution.append(sorted_dist_pre_cluster_att[label])
+        sorted_distribution.append(sorted_dist_prior_per_att[label])
+        types.extend(['Cluster', 'Prior'])
+        group_labels.extend([label, label])
+
+    data = pd.DataFrame({
+        "Labels": group_labels,
+        "Distribution": sorted_distribution,
+        "Type": types
+    })
+    fig = px.bar(
+        data,
+        x="Labels",
+        y="Distribution",
+        color="Type",
+        barmode="group",
+        # title=f"Cluster {cluster_id} - Attribute {att_id}",
+        labels={"Distribution": "Distribution", "Labels": "Labels"}
+    )
+    fig.update_layout(
+        width=600,
+        height=400
+    )
+
+    return fig
+
+def config_scatter_graph(infoclus: InfoClus, emb_name: str = None):
     if emb_name is None:
-        emb_name = adata.uns['InfoClus']['main_emb']
-    alpha = adata.uns['InfoClus']['hyperparameters']['alpha']
-    beta = adata.uns['InfoClus']['hyperparameters']['beta']
-    mina = adata.uns['InfoClus']['hyperparameters']['mina']
-    maxa = adata.uns['InfoClus']['hyperparameters']['maxa']
-    runid = adata.uns['InfoClus']['hyperparameters']['runid']
+        emb_name = infoclus.emb_name
+
+    alpha = infoclus.alpha
+    beta = infoclus.beta
+    mina = infoclus.min_att
+    maxa = infoclus.max_att
+    runid = infoclus.runtime_id
     run_time_marker = RUNTIME_MARKERS[runid]
 
-    clustering = adata.obs['infoclus_clustering'].values
-    embedding = adata.obsm.get(emb_name)
+    clustering = infoclus._clustering_opt
+    embedding = infoclus.all_embeddings[emb_name]
 
     df = pd.DataFrame({
         'x': embedding[:, 0],  # X coordinates
         'y': embedding[:, 1],  # Y coordinates
         'class': pd.Categorical(clustering)  # Classifications
     })
-    fig = px.scatter(df, x='x', y='y', color='class',
-                     title=f'clusteringEmb_{emb_name} alpha_{alpha} beta_{beta} mina_{mina} maxa_{maxa} runtime_{run_time_marker}')
+    #todo: error, change the title to another bar, update with optimise and dataset switch
+    fig = px.scatter(df, x='x', y='y', color='class')
     fig.update_layout(
         width=810,
         height=540
@@ -89,7 +134,7 @@ def config_scatter_graph(adata: ad.AnnData, emb_name: str = None):
     return fig
 
 
-def config_explanations_kde(data: np.ndarray,
+def config_explanations(infoclus: InfoClus, data: np.ndarray,
                             clustering: np.ndarray, attributes: list,
                             att_names: np.ndarray, ics_cluster: np.ndarray, cluster_label: int = 0):
     """
@@ -102,16 +147,22 @@ def config_explanations_kde(data: np.ndarray,
 
     figures = [html.Br(), dbc.Alert("Contains " + format(percentage, '.2f') + ' % of data', color="info")]
 
-    for att in attributes:
-        data_att = data[:, att]
-        cluster_att = cluster[:, att]
-        att_name = att_names[att]
-        kde = get_kde(data_att, cluster_att, att_name)
+    for att_id in attributes:
+        data_att = data[:, att_id]
+        cluster_att = cluster[:, att_id]
+        att_name = att_names[att_id]
+        att_type = infoclus.var_type[att_id]
+        if att_type == 'categorical':
+            fig = get_barchart(infoclus, att_id, cluster_label)
+        elif att_type == 'numeric':
+            fig = get_kde(data_att, cluster_att)
+        else:
+            print('unsupported attribute type for visualization:', att_type)
 
         figures.append(html.H6(
-            [att_name, dbc.Badge(format(ics_cluster[att], '.1f') + " IC", color="success", className="ml-1")]))
+            [att_name, dbc.Badge(format(ics_cluster[att_id], '.1f') + " IC", color="success", className="ml-1")]))
         figures.append(dcc.Graph(id=f"Cluster {cluster_label}, {att_name}",
-                                 figure=kde,
+                                 figure=fig,
                                  config={
                                      'displayModeBar': False
                                  }))
@@ -119,24 +170,24 @@ def config_explanations_kde(data: np.ndarray,
     return figures
 
 
-def config_hyperparameter_tuning(adata):
+def config_hyperparameter_tuning(infoclus: InfoClus):
 
-    alpha = adata.uns['InfoClus']['hyperparameters']['alpha']
+    alpha = infoclus.alpha
     alpha_max = alpha * 5
     alpha_min = 0
 
-    beta = adata.uns['InfoClus']['hyperparameters']['beta']
+    beta = infoclus.beta
     beta_max = 2
     beta_min = 1
 
-    mina = adata.uns['InfoClus']['hyperparameters']['mina']
+    mina = infoclus.min_att
     mina_max = mina * 5
     mina_min = 0
-    maxa = adata.uns['InfoClus']['hyperparameters']['maxa']
+    maxa = infoclus.max_att
     maxa_max = maxa * 5
     maxa_min = 0
 
-    runid = adata.uns['InfoClus']['hyperparameters']['runid']
+    runid = infoclus.runtime_id
     runid_max = len(RUNTIME_MARKERS)
     runid_min = 0
 
@@ -256,7 +307,7 @@ def get_dataset_main_emb(data, dataset_name):
     return None
 
 
-def config_layout(datasets_config: str = 'datasets_info.yaml', dataset_name: str = 'german_socio_eco', cluster_id: int = 0):
+def config_layout(datasets_config: str = 'datasets_info.yaml', dataset_name: str = 'german_socio_eco', emb_name: str = 'tsne', cluster_id: int = 0):
 
     with open(datasets_config, 'r') as file:
         datasets_info = yaml.safe_load(file)
@@ -264,17 +315,24 @@ def config_layout(datasets_config: str = 'datasets_info.yaml', dataset_name: str
     if dataset_name not in datasets_info['datasets']:
         print("Error! Dataset not found.")
 
-    adata = ad.read_h5ad(os.path.join(ROOT_DIR, 'data', dataset_name, f'{dataset_name}.h5ad'))
+    # read pickle from path
+    data_path = os.path.join(ROOT_DIR, 'data', dataset_name, f'{dataset_name}_{emb_name}.pkl')
+    if os.path.exists(data_path):
+        with open(data_path, 'rb') as file:
+            infoclus = pickle.load(file)
+    else:
+        infoclus = InfoClus(dataset_name=dataset_name, main_emb=emb_name)
+        infoclus.optimise()
 
-    count_clusters = len(np.unique(adata.obs['infoclus_clustering'].values))
-    main_emb_name = adata.uns['InfoClus']['main_emb']
-    clustering = adata.obs['infoclus_clustering'].values
-    main_emb = adata.obsm.get(main_emb_name)
-    data = adata.X
+    clustering = infoclus._clustering_opt
+    count_clusters = len(np.unique(infoclus._clustering_opt))
+    main_emb_name = infoclus.emb_name
+    main_emb = infoclus.embedding
+    data = infoclus.data
     count_intances = data.shape[0]
-    att_names = adata.var.index.values
-    attributes = adata.uns['InfoClus'][f'cluster_{cluster_id}']['attributes']
-    ics_cluster = adata.uns['InfoClus'][f'cluster_{cluster_id}']['ic']
+    att_names = infoclus.data_raw.columns.values
+    attributes = infoclus._attributes_opt[cluster_id]
+    ics_cluster = np.array(infoclus._ic_opt[cluster_id])
 
     return html.Div([
         # Top Navbar
@@ -305,6 +363,28 @@ def config_layout(datasets_config: str = 'datasets_info.yaml', dataset_name: str
                             )
                         )
                     ]),
+                    dbc.Row(
+                        html.Div([html.Span("embedding used for clustering: ", style={'margin-right': '10px'}),
+                                  dcc.Input(id='embedding-used-for-clustering', type='text',
+                                            value=f"{infoclus.emb_name}", readOnly=True,
+                                            style=top_bar_style),
+                                  html.Span("alpha: ", style={'margin-right': '10px'}),
+                                  dcc.Input(id='alpha-value', type='text', value=f"{infoclus.alpha}", readOnly=True,
+                                            style=top_bar_style),
+                                  html.Span("beta: ", style={'margin-right': '10px'}),
+                                  dcc.Input(id='beta-value', type='text', value=f"{infoclus.beta}", readOnly=True,
+                                            style=top_bar_style),
+                                  html.Span("min_att: ", style={'margin-right': '10px'}),
+                                  dcc.Input(id='min-att', type='text', value=f"{infoclus.min_att}", readOnly=True,
+                                            style=top_bar_style),
+                                  html.Span("max_att: ", style={'margin-right': '10px'}),
+                                  dcc.Input(id='max-att', type='text', value=f"{infoclus.max_att}", readOnly=True,
+                                            style=top_bar_style),
+                                  html.Span("run time: ", style={'margin-right': '10px'}),
+                                  dcc.Input(id='run time id', type='text', value=f"{RUNTIME_MARKERS[infoclus.runtime_id]}", readOnly=True,
+                                            style=top_bar_style),
+                                  ]),
+                    ),
                     html.Br(),
                     dbc.Row(
                         [
@@ -318,7 +398,7 @@ def config_layout(datasets_config: str = 'datasets_info.yaml', dataset_name: str
                                                 html.H5(children=dataset_name, className="card-title"),
                                                 dcc.Graph(
                                                         id="embedding-scatterPlot",
-                                                        figure=config_scatter_graph(adata, main_emb_name)
+                                                        figure=config_scatter_graph(infoclus, main_emb_name)
                                                     )
                                             ]
                                         )
@@ -329,7 +409,7 @@ def config_layout(datasets_config: str = 'datasets_info.yaml', dataset_name: str
                                         dbc.CardBody(
                                             [
                                                 html.H5(children="Tune hyperparameters", className="card-title"),
-                                                config_hyperparameter_tuning(adata)
+                                                config_hyperparameter_tuning(infoclus)
                                             ]
                                         )
                                     ),
@@ -351,7 +431,7 @@ def config_layout(datasets_config: str = 'datasets_info.yaml', dataset_name: str
                                                     ],
                                                     value=0
                                                 ),
-                                                html.Div(config_explanations_kde(data, clustering, attributes, att_names, ics_cluster, cluster_id),
+                                                html.Div(config_explanations(infoclus, data, clustering, attributes, att_names, ics_cluster, cluster_id),
                                                          id="explanation", style=SIDEBAR_STYLE)
                                             ]
                                         ),

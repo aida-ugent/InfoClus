@@ -1,6 +1,6 @@
 import os
 import pickle
-from infoclus import InfoClus
+from src.infoclus import InfoClus
 from src.frontend_dash.utils import check_infoclus_object
 from utils import get_git_root
 
@@ -20,7 +20,7 @@ else:
     infoclus = InfoClus(dataset_name=dataset_name, main_emb=embedding_name)
 infoclus.optimise()
 
-# print(__file__)
-# print(os.path.abspath(__file__))
-# print(os.path.dirname(os.path.abspath(__file__)))
+
+
+
 
