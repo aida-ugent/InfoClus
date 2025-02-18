@@ -44,11 +44,11 @@ top_bar_style={'display': 'inline-block', 'padding': '5px 10px',
 KERNALS = ["gaussian", "tophat", "epanechnikov"]
 KERNAL = KERNALS[0]
 
-def get_kde(data_att: np.ndarray, cluster_att: np.ndarray):
+def get_kde(data_att: np.ndarray, cluster_att: np.ndarray, att_name: str):
     """
     :return: return kernal desity estimation of one attribute for a cluster
     """
-
+    percentage = len(cluster_att) / len(data_att)
     # Note: two kde's need to have the same bandwidth to ensure that they are comparable
     kde_data = KernelDensity(kernel='gaussian', bandwidth='scott').fit(data_att.reshape(-1,1))
     kde_cluster = KernelDensity(kernel='gaussian', bandwidth=kde_data.bandwidth_).fit(cluster_att.reshape(-1,1))
@@ -61,11 +61,11 @@ def get_kde(data_att: np.ndarray, cluster_att: np.ndarray):
     overlap_density = kde_cluster_vals * cluster_proportion
 
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=x_vals, y=kde_data_vals, mode='lines', name='Full Data Density',
+    fig.add_trace(go.Scatter(x=x_vals, y=kde_data_vals, mode='lines', name=f'kde of {att_name} on full data',
                              line=dict(color='blue', width=2)))
-    fig.add_trace(go.Scatter(x=x_vals, y=kde_cluster_vals, mode='lines', name='Cluster Density',
+    fig.add_trace(go.Scatter(x=x_vals, y=kde_cluster_vals, mode='lines', name=f'kde of {att_name} on cluster',
                              line=dict(color='green', width=2, dash='dot')))
-    fig.add_trace(go.Scatter(x=x_vals, y=overlap_density, fill='tozeroy', name='Overlap by Cluster',
+    fig.add_trace(go.Scatter(x=x_vals, y=overlap_density, fill='tozeroy', name=f'{percentage}% Overlapped by Cluster',
                              line=dict(color='orange', width=1)))
     fig.update_layout(xaxis_title="Value",
                       yaxis_title="Densities",
@@ -76,7 +76,7 @@ def get_kde(data_att: np.ndarray, cluster_att: np.ndarray):
 
     return fig
 
-def get_barchart(infoclus: InfoClus, att_id: int, cluster_id: int):
+def get_barchart(infoclus: InfoClus, att_id: int, cluster_id: int, att_name: str):
 
     df_mapping_chain = infoclus.ls_mapping_chain_by_col[att_id]
     real_labels = df_mapping_chain.iloc[:,0]
@@ -166,9 +166,9 @@ def config_explanations(infoclus: InfoClus, data: np.ndarray,
         att_name = att_names[att_id]
         att_type = infoclus.var_type[att_id]
         if att_type == 'categorical':
-            fig = get_barchart(infoclus, att_id, cluster_label)
+            fig = get_barchart(infoclus, att_id, cluster_label, att_name)
         elif att_type == 'numeric':
-            fig = get_kde(data_att, cluster_att)
+            fig = get_kde(data_att, cluster_att, att_name)
         else:
             print('unsupported attribute type for visualization:', att_type)
 

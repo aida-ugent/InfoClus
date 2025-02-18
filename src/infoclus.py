@@ -1,17 +1,19 @@
 import pickle
 import warnings
-
-import pandas as pd
-import numpy as np
 import os
 import collections
 import time
 import copy
 import math
 
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import infoclus_utils as utils
+
 from sklearn.cluster import AgglomerativeClustering
 from caching import from_cache, to_cache
-import infoclus_utils as utils
 from utils import get_git_root
 
 RUNTIME_OPTIONS = [0.01, 0.5, 1, 5, 10, 30, 60, 180, 300, 600, 1800, 3600, np.inf]
@@ -662,6 +664,62 @@ class InfoClus:
             self._total_ic_opt = previously_calculated["total_ic"]
             self._res_in_brief = previously_calculated["res_in_brief"]
         return cache_name, previously_calculated
+
+
+    def visualize_result(self, show_now = False):
+
+        # visualize clustering on embedding
+        data = self.data
+        labels = self._clustering_opt
+        embedding = self.embedding
+        att_names = self.data_raw.columns.values
+        unique_classes = np.unique(labels)
+        num_classes = len(unique_classes)
+
+        colors = sns.color_palette("colorblind", num_classes)  # HUSL generates distinguishable colors
+        plt.figure(figsize=(8, 6))
+        for i, cls in enumerate(unique_classes):
+            # Select points corresponding to the current class
+            class_points = embedding[labels == cls]
+            lable = f'cluster {cls}'
+            plt.scatter(class_points[:, 0], class_points[:, 1],
+                        color=colors[i], label=lable, s=15)
+        plt.legend()
+        # plt.title("Clustering of Cytometry 2500 - computed by Infoclus")
+        fig_path = f"../figs/{self.name} {self.alpha} {self.beta} -Infoclus"
+        plt.savefig(f'{fig_path}.pdf')
+        plt.savefig(f'{fig_path}.png')
+        if show_now:
+            plt.show()
+
+        # visualize distributions of attributes
+        for cluster_label in unique_classes:
+            instance_cluster_idx = np.where(labels == cluster_label)
+            attributes = self._attributes_opt[cluster_label]
+            cluster = data[instance_cluster_idx]
+            cluster_color  = colors[cluster_label]
+            for att_id in attributes:
+                data_att = data[:, att_id]
+                cluster_att = cluster[:, att_id]
+                att_name = att_names[att_id]
+                att_type = self.var_type[att_id]
+                if att_type == 'categorical':
+                    # todo: clean code here
+                    df_mapping_chain = self.ls_mapping_chain_by_col[att_id]
+                    nuniques = len(df_mapping_chain)
+                    dist_of_fixed_cluster_att = self._clustersRelatedInfo[cluster_label][0].iloc[:nuniques,
+                                                att_id].values
+                    dist_of_att_in_data = self._priors.iloc[:nuniques, att_id].values
+                    fig = utils.get_barchart(df_mapping_chain,dist_of_fixed_cluster_att,dist_of_att_in_data, att_id, cluster_label,att_name, cluster_color)
+                elif att_type == 'numeric':
+                    fig = utils.get_kde(data_att, cluster_att, att_name, cluster_label, cluster_color)
+                else:
+                    print('unsupported attribute type for visualization:', att_type)
+                if show_now:
+                    fig.show()
+                fig_path = f"../figs/{self.name} a{self.alpha} b{self.beta} C{cluster_label} {att_name} -Infoclus"
+                fig.savefig(f'{fig_path}.pdf')
+                fig.savefig(f'{fig_path}.png')
 
     # # TODO: rename the variables in adata to match frontend
     # def update_adata(self):

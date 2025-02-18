@@ -22,9 +22,9 @@ ROOT_DIR = get_root()
 sys.path.append(ROOT_DIR)
 sys.path.append(os.path.join(ROOT_DIR, "src"))
 
-dataset_name = 'cytometry_2500'
-# dataset_name = 'german_socio_eco'
-# dataset_name = 'mushroom_3000'
+# dataset_name = 'cytometry_2500'
+dataset_name = 'german_socio_eco'
+# dataset_name = 'mushroom'
 embedding_name = 'tsne'
 
 infoclus_object_path = os.path.join(ROOT_DIR, 'data', dataset_name, f'{dataset_name}_{embedding_name}.pkl')
@@ -35,32 +35,12 @@ if if_exists:
 else:
     infoclus = InfoClus(dataset_name=dataset_name, main_emb=embedding_name)
 
-alpha = 700
-beta = 1.4
+alpha = 50
+beta = 1.5
 min_att=2
 max_att=5
 runtime_id=3
 infoclus.optimise(alpha=alpha,beta=beta,min_att=min_att,max_att=max_att,runtime_id=runtime_id)
 
-labels = infoclus._clustering_opt
-tsne = infoclus.embedding
-unique_classes = np.unique(labels)
-num_classes = len(unique_classes)
-colors = sns.color_palette("colorblind", num_classes)  # HUSL generates distinguishable colors
-plt.figure(figsize=(8, 6))
-for i, cls in enumerate(unique_classes):
-    # Select points corresponding to the current class
-    class_points = tsne[labels == cls]
-    lable = f'cluster {cls}'
-    plt.scatter(class_points[:, 0], class_points[:, 1],
-                color=colors[i], label=lable, s=15)
-plt.legend()
-plt.title("Clustering of Cytometry 2500 - computed by Infoclus")
-fig_path = f"../figs/Cytometry 2500 {alpha}-Infoclus"
-plt.savefig(f'{fig_path}.pdf')
-plt.show()
-
-
-
-
+infoclus.visualize_result(True)
 
