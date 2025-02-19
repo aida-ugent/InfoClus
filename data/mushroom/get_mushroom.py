@@ -26,6 +26,7 @@ for column, mapping in names_mapping.items():
     if column in df.columns:  # 只有当列名匹配时才替换
         df[column] = df[column].replace(mapping)
 
+df = df.drop(columns=["poisonous"])
 
 df.to_csv("mushroom.csv", index=False)
 print("CSV file saved as mushroom.csv")

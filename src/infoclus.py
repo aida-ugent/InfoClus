@@ -669,7 +669,7 @@ class InfoClus:
     def visualize_result(self, show_now = False):
 
         # visualize clustering on embedding
-        data = self.data
+        data = self.data_raw.values
         labels = self._clustering_opt
         embedding = self.embedding
         att_names = self.data_raw.columns.values
@@ -697,6 +697,7 @@ class InfoClus:
             instance_cluster_idx = np.where(labels == cluster_label)
             attributes = self._attributes_opt[cluster_label]
             cluster = data[instance_cluster_idx]
+            overlap = len(cluster) / len(data)
             cluster_color  = colors[cluster_label]
             for att_id in attributes:
                 data_att = data[:, att_id]
@@ -710,14 +711,14 @@ class InfoClus:
                     dist_of_fixed_cluster_att = self._clustersRelatedInfo[cluster_label][0].iloc[:nuniques,
                                                 att_id].values
                     dist_of_att_in_data = self._priors.iloc[:nuniques, att_id].values
-                    fig = utils.get_barchart(df_mapping_chain,dist_of_fixed_cluster_att,dist_of_att_in_data, att_id, cluster_label,att_name, cluster_color)
+                    fig = utils.get_barchart(df_mapping_chain,dist_of_fixed_cluster_att,dist_of_att_in_data, att_id, cluster_label,att_name, cluster_color, overlap)
                 elif att_type == 'numeric':
                     fig = utils.get_kde(data_att, cluster_att, att_name, cluster_label, cluster_color)
                 else:
                     print('unsupported attribute type for visualization:', att_type)
                 if show_now:
                     fig.show()
-                fig_path = f"../figs/{self.name} a{self.alpha} b{self.beta} C{cluster_label} {att_name} -Infoclus"
+                fig_path = f"../figs/{self.name} a{self.alpha} b{self.beta} C{cluster_label}_{overlap:.2%} {att_name} -Infoclus"
                 fig.savefig(f'{fig_path}.pdf')
                 fig.savefig(f'{fig_path}.png')
 

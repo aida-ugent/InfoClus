@@ -9,9 +9,8 @@ from sklearn.discriminant_analysis import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.neighbors import KernelDensity
-import plotly.graph_objects as go
 import matplotlib.pyplot as plt
-import plotly.express as px
+from sklearn.model_selection import GridSearchCV
 from utils import get_git_root
 
 def kl_gaussian(m1, s1, m2, s2, epsilon=0.00001):
@@ -113,7 +112,7 @@ def get_scaled_data(data: pd.DataFrame, replace_nan: float) -> pd.DataFrame:
 
 def get_embeddings(data_array: np.ndarray) -> Dict[str, np.ndarray]:
     embeddings_dict = {}
-    tsne = TSNE(n_components=2)
+    tsne = TSNE(n_components=2, perplexity=30, random_state=1)
     embeddings_dict['tsne'] = tsne.fit_transform(data_array)
     pca = PCA(n_components=2)
     embeddings_dict['pca'] = pca.fit_transform(data_array)
@@ -152,7 +151,11 @@ def get_kde(data_att: np.ndarray, cluster_att: np.ndarray, att_name: str, cluste
     percentage = len(cluster_att) / len(data_att)
 
     # Fit KDE models
-    kde_data = KernelDensity(kernel='gaussian', bandwidth='scott').fit(data_att.reshape(-1, 1))
+    # grid = GridSearchCV(KernelDensity(kernel='gaussian'), {'bandwidth': np.linspace(0.1, 5.0, 30)})
+    # grid.fit(data_att.reshape(-1, 1))
+    # optimal_bandwidth = grid.best_params_['bandwidth']
+
+    kde_data = KernelDensity(kernel='gaussian', bandwidth='silverman').fit(data_att.reshape(-1, 1))
     kde_cluster = KernelDensity(kernel='gaussian', bandwidth=kde_data.bandwidth_).fit(cluster_att.reshape(-1, 1))
 
     # Generate x values
@@ -165,19 +168,20 @@ def get_kde(data_att: np.ndarray, cluster_att: np.ndarray, att_name: str, cluste
     overlap_density = kde_cluster_vals * cluster_proportion
 
     # Create the plot
-    fig, ax = plt.subplots(figsize=(6, 4))
-    ax.plot(x_vals, kde_data_vals, label=f'KDE of {att_name} on full data', color='black', linewidth=2)
-    ax.plot(x_vals, kde_cluster_vals, label=f'KDE of {att_name} on cluster {cluster_id}', color=cluster_color, linestyle='dotted',
-            linewidth=2)
-    ax.fill_between(x_vals, overlap_density, color=cluster_color, alpha=0.5, label=f'{percentage:.2%} Overlapped by Cluster {cluster_id}')
+    fig, ax = plt.subplots(figsize=(6, 5))
+    ax.plot(x_vals, kde_data_vals, label=f'Data', color='black', linewidth=2)
+    ax.plot(x_vals, kde_cluster_vals, label=f'C {cluster_id}', color=cluster_color, linestyle='dotted',
+            linewidth=4)
+    ax.fill_between(x_vals, overlap_density, color=cluster_color, alpha=0.5, label=f'{percentage:.2%}')
 
     # Labels and legend
-    ax.set_xlabel(f"{att_name}")
-    ax.set_ylabel("Densities")
-    ax.legend()
+    ax.set_xlabel(f"{att_name}", fontsize=25)
+    fig.tight_layout()
+    # ax.set_ylabel('Density', fontsize=18)
+    ax.legend(fontsize=20)
     return fig
 
-def get_barchart(df_mapping_chain, dist_of_fixed_cluster_att, dist_of_att_in_data,  att_id: int, cluster_id: int, att_name: str, cluster_color):
+def get_barchart(df_mapping_chain, dist_of_fixed_cluster_att, dist_of_att_in_data,  att_id: int, cluster_id: int, att_name: str, cluster_color, overlap: float):
 
     real_labels = df_mapping_chain.iloc[:, 0]
     dist_pre_cluster_att = pd.Series(dist_of_fixed_cluster_att, index=real_labels)
@@ -189,15 +193,15 @@ def get_barchart(df_mapping_chain, dist_of_fixed_cluster_att, dist_of_att_in_dat
     x = np.arange(len(sorted_labels))  # Label locations
     width = 0.4  # Width of bars
 
-    fig, ax = plt.subplots(figsize=(6, 4))
-    ax.bar(x - width / 2, sorted_dist_pre_cluster_att, width, label=f'{att_name} proportion in cluster {cluster_id}', color=cluster_color)
-    ax.bar(x + width / 2, sorted_dist_prior_per_att, width, label=f'{att_name} proportion in full data', color='grey')
+    fig, ax = plt.subplots(figsize=(6, 5))
+    ax.bar(x - width / 2, sorted_dist_pre_cluster_att, width, label=f'C{cluster_id}-{overlap:.2%}', color=cluster_color)
+    ax.bar(x + width / 2, sorted_dist_prior_per_att, width, label=f'Data', color='black')
 
-    # ax.set_xlabel("Labels")
-    ax.set_ylabel("Proportion")
+    ax.set_xlabel(att_name, fontsize=25)
+    # ax.set_ylabel("Proportion")
     ax.set_xticks(x)
-    ax.set_xticklabels(sorted_labels, rotation=45, ha='right')
-    ax.legend()
+    ax.set_xticklabels(sorted_labels, rotation=20, ha='right')
+    ax.legend(fontsize=20)
     # ax.set_title(f"Cluster {cluster_id} - {att_name}")
 
     plt.tight_layout()
