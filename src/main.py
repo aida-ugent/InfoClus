@@ -22,8 +22,8 @@ ROOT_DIR = get_root()
 sys.path.append(ROOT_DIR)
 sys.path.append(os.path.join(ROOT_DIR, "src"))
 
-# dataset_name = 'cytometry_2500'
-dataset_name = 'german_socio_eco'
+dataset_name = 'cytometry_2500'
+# dataset_name = 'german_socio_eco'
 # dataset_name = 'mushroom'
 embedding_name = 'tsne'
 
@@ -35,7 +35,7 @@ if if_exists:
 else:
     infoclus = InfoClus(dataset_name=dataset_name, main_emb=embedding_name)
 
-alpha = 200
+alpha = 2300
 beta = 1.5
 min_att=2
 max_att=5
