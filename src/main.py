@@ -2,12 +2,9 @@ import os
 import pickle
 import sys
 import subprocess
-import numpy as np
 
 from infoclus import InfoClus
-import matplotlib.pyplot as plt
-import seaborn as sns
-from utils import get_git_root
+from sklearn.cluster import AgglomerativeClustering, KMeans
 
 def get_root():
     try:
@@ -22,20 +19,23 @@ ROOT_DIR = get_root()
 sys.path.append(ROOT_DIR)
 sys.path.append(os.path.join(ROOT_DIR, "src"))
 
-dataset_name = 'cytometry_2500'
-# dataset_name = 'german_socio_eco'
+# dataset_name = 'cytometry_2500'
+dataset_name = 'german_socio_eco'
 # dataset_name = 'mushroom'
 embedding_name = 'tsne'
+# model = AgglomerativeClustering(linkage='single', distance_threshold=0, n_clusters=None),
+model = KMeans(n_clusters=3, random_state=42)
 
 infoclus_object_path = os.path.join(ROOT_DIR, 'data', dataset_name, f'{dataset_name}_{embedding_name}.pkl')
 if_exists = os.path.exists(infoclus_object_path)
+
 if if_exists:
     with open(os.path.join(infoclus_object_path), 'rb') as f:
         infoclus = pickle.load(f)
 else:
-    infoclus = InfoClus(dataset_name=dataset_name, main_emb=embedding_name)
+    infoclus = InfoClus(dataset_name=dataset_name, main_emb=embedding_name, model=model)
 
-alpha = 2300
+alpha = 50
 beta = 1.5
 min_att=2
 max_att=5

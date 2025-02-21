@@ -12,14 +12,16 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import infoclus_utils as utils
 
-from sklearn.cluster import AgglomerativeClustering
+from sklearn.cluster import AgglomerativeClustering, KMeans
 from caching import from_cache, to_cache
 from utils import get_git_root
+from collections import defaultdict
 
 RUNTIME_OPTIONS = [0.01, 0.5, 1, 5, 10, 30, 60, 180, 300, 600, 1800, 3600, np.inf]
 VAR_TPYE_THRESHOLD = 20
 REPLACE_NAN = 0
 EPSILON= 0.00001
+KMEANS_COUNT = 30 # How many kmeans with different k we are going to consider, starting from the k passed in initailization
 
 ROOT = get_git_root()
 DATA_FOLDER = os.path.join(ROOT, 'data')
@@ -114,11 +116,17 @@ class InfoClus:
             print("ERROR! not supported variable type!")
 
         #################################### step2: furthur process #########################################
-        self._fit_model()
-        self._create_linkage() 
+        if isinstance(self.model, AgglomerativeClustering):
+            self._fit_model()
+            self._create_linkage()
+            file_path = os.path.join(self.dataset_folder, f'{self.name}_{self.emb_name}_agglomerative.pkl')
+        if isinstance(self.model, KMeans):
+            file_path = os.path.join(self.dataset_folder, f'{self.name}_{self.emb_name}_kmeans.pkl')
         self._calc_priors()
 
-        print('initialization done')
+        with open(file_path, "wb") as file:
+            pickle.dump(self, file)
+        print(f'initialization done, instance saved to {file_path}')
 
     def _fit_model(self):
         '''
@@ -357,12 +365,12 @@ class InfoClus:
         # start clustering when no cache
         if previously_calculated is None:
             self._si_opt = 0
-            self._res_in_brief = ''
-            self._run_infoclus()
+            # todo: merge the two run_infoclus into one, and using if condition to control
+            if isinstance(self.model, AgglomerativeClustering):
+                self._run_infoclus_agglomerative()
+            if isinstance(self.model, KMeans):
+                self._run_infoclus_kmeans()
             self.create_cache_version(cache_name)
-        file_path = os.path.join(self.dataset_folder, f'{self.name}_{self.emb_name}.pkl')
-        with open(file_path, "wb") as file:
-            pickle.dump(self, file)
 
         print(f'\nInfoClus - Dataset: {self.name} Emb: {self.emb_name} Alpha: {self.alpha} Beta: {self.beta} Ref. Runtime: {self.runtime}')
         print(f'Count of Clusters: {len(set(self._clustering_opt))}')
@@ -379,8 +387,8 @@ class InfoClus:
 
         return self._clustering_opt, self.embedding
 
-    ######################################## step 3: run InfoClus ########################################
-    def _run_infoclus(self):
+    ######################################## step 3: run InfoClus by agglomerative ########################################
+    def _run_infoclus_agglomerative(self):
         '''
         Here is the core part of Infoclus algorithm, the process is as follows:
         1. initialization of all result-related variables as None
@@ -456,6 +464,50 @@ class InfoClus:
                 local_optimum = True
         print("done")
         print(f'considered splitting times: {considered_splitting_times}')
+
+    # in principle, the code is done, but I need to run to check is everything ok
+    def _run_infoclus_kmeans(self):
+        #################################### step1: initialization result-related variables #########################################
+        # todo: most of here are not necessary for kmeans, but now is needed to guarantee the run of code
+        self._clustering_opt = None  # final clustering labels for each point
+        self._si_opt = 0  # value of si for this clustering
+        self._clustersRelatedInfo = {}  # means, vars, and counts for each cluster
+        self._clusterlabel_max: int = 0  # maximum label, from 0
+        self._attributes_opt = None  # chosen attributes for each cluster
+        self._ic_opt = None  # ic of all attributes for each cluster
+        self._total_ic_opt = 0
+        self._total_dl_opt = 0  # value for summing up length of attributes
+        self._split_nodes_opt = []  # splitted nodes and their classification label, tuple inside
+        self._nodes_opt = None  # the left nodes that could be used for further splitting
+        self._split_nodes_opt.append(("others", 0))
+        clustering_new_info = {}
+
+        print("considering kmeans", end='')
+        for i in range(KMEANS_COUNT):
+            k = self.model.n_clusters + i
+            model = KMeans(n_clusters=k)
+            model.fit(self.embedding)
+            clustering_new = model.labels_
+            index_dict = defaultdict(list)
+            for idx, label in enumerate(clustering_new):
+                index_dict[label].append(idx)
+            ics=[]
+            for cluster in range(k):
+                index_cluster = index_dict[cluster]
+                cluster = self.data.iloc[index_cluster]
+                mean_cluster = np.mean(cluster)
+                var_cluster = np.var(cluster)
+                count_cluster = len(cluster)
+                ic_cluster = self.ic_one_info(mean_cluster,var_cluster,count_cluster)
+                ics.append(ic_cluster)
+            attributes, ic_attributes, dl, si_val = self.calc_optimal_attributes_dl(ics)
+            if si_val > self._si_opt:
+                self._clustering_opt = clustering_new
+                self._attributes_opt = attributes
+                self._si_opt = si_val
+                self._ic_opt = ic_attributes
+        print("done")
+
 
     def _choose_optimal_split(self, nodes, clustering=None, clusteringInfo=None, max_cluster_label=0, ic_temp=None):
         '''
@@ -640,12 +692,15 @@ class InfoClus:
                                  "nodes": self._nodes_opt,
                                  "total_dl": self._total_dl_opt,
                                  "total_ic": self._total_ic_opt,
-                                 "res_in_brief": self._res_in_brief
                                  }
         to_cache(os.path.join(self.cache_path, cache_name), previously_calculated)
 
     def check_cache(self):
-        cache_name = f'{self.name}_{self.emb_name}_{self.model.linkage}_alpha{int(self.alpha)}_beta{self.beta}_mina{self.min_att}_maxa{self.max_att}_runid{int(self.runtime_id)}'
+        if isinstance(self.model, AgglomerativeClustering):
+            cache_name = f'{self.name}_{self.emb_name}_agglomerative_{self.model.linkage}_alpha{int(self.alpha)}_beta{self.beta}_mina{self.min_att}_maxa{self.max_att}_runid{int(self.runtime_id)}'
+        if isinstance(self.model, KMeans):
+            cache_name = f'{self.name}_{self.emb_name}_kmeans_{self.model.n_clusters}_alpha{int(self.alpha)}_beta{self.beta}_mina{self.min_att}_maxa{self.max_att}_runid{int(self.runtime_id)}'
+
         previously_calculated = from_cache(os.path.join(self.cache_path, cache_name))
         if previously_calculated is not None:
             print("From cache")
@@ -662,7 +717,6 @@ class InfoClus:
             self._nodes_opt = previously_calculated["nodes"]
             self._total_dl_opt = previously_calculated["total_dl"]
             self._total_ic_opt = previously_calculated["total_ic"]
-            self._res_in_brief = previously_calculated["res_in_brief"]
         return cache_name, previously_calculated
 
 
