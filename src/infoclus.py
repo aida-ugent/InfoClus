@@ -116,13 +116,15 @@ class InfoClus:
             print("ERROR! not supported variable type!")
 
         #################################### step2: furthur process #########################################
+        # file_path = ''
         if isinstance(self.model, AgglomerativeClustering):
             self._fit_model()
             self._create_linkage()
             file_path = os.path.join(self.dataset_folder, f'{self.name}_{self.emb_name}_agglomerative.pkl')
+            self._calc_priors_agglomerative()
         if isinstance(self.model, KMeans):
             file_path = os.path.join(self.dataset_folder, f'{self.name}_{self.emb_name}_kmeans.pkl')
-        self._calc_priors()
+            self._calc_priors_kmeans() # todo, merge two _calc_priors as one
 
         with open(file_path, "wb") as file:
             pickle.dump(self, file)
@@ -236,7 +238,7 @@ class InfoClus:
         self._parents = parents  # without counting original points
         self._linkage_matrix = np.column_stack([self.model.children_, self.model.distances_, counts])
 
-    def _calc_priors(self):
+    def _calc_priors_agglomerative(self):
         # TODO: rewrite, remove dl_indices for numeric
         if self.global_var_type == 'mixed':
             pass
@@ -254,6 +256,18 @@ class InfoClus:
                 self._dl_indices[dl] = indices
         elif self.global_var_type == 'categorical':
             self._priors = self._distributionsForNodes[len(self.data) - 2]
+
+    def _calc_priors_kmeans(self):
+        if self.global_var_type == 'mixed':
+            pass
+        elif self.global_var_type == 'numeric':
+            pass
+            self._priors = np.array([np.mean(self.data, axis=0), np.var(self.data,axis=0)]).T
+            self._priorsGausM = self._priors[:,0]
+            self._priorsGausS = self._priors[:,1]
+        elif self.global_var_type == 'categorical':
+            pass
+            # self._priors = np.mean(self._priors, axis=0)
 
     # TODO: remove all recur functions to another file, because they are not related to the class
     def recur_mean(self, mean1, count1, mean2, count2):
@@ -494,7 +508,7 @@ class InfoClus:
             ics=[]
             for cluster in range(k):
                 index_cluster = index_dict[cluster]
-                cluster = self.data.iloc[index_cluster]
+                cluster = self.data[index_cluster]
                 mean_cluster = np.mean(cluster)
                 var_cluster = np.var(cluster)
                 count_cluster = len(cluster)
