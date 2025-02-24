@@ -14,6 +14,7 @@ import infoclus_utils as utils
 
 from sklearn.cluster import AgglomerativeClustering, KMeans
 from caching import from_cache, to_cache
+from src.infoclus_utils import kl_gaussian
 from utils import get_git_root
 from collections import defaultdict
 
@@ -266,8 +267,19 @@ class InfoClus:
             self._priorsGausM = self._priors[:,0]
             self._priorsGausS = self._priors[:,1]
         elif self.global_var_type == 'categorical':
-            pass
-            # self._priors = np.mean(self._priors, axis=0)
+            count_of_uniques_per_attribute = [len(df) for df in self.ls_mapping_chain_by_col]
+            np_data = np.zeros((max(count_of_uniques_per_attribute), len(self.data_raw.columns)))
+            mask = np.arange(np_data.shape[0])[:, None] >= np.array(count_of_uniques_per_attribute)
+            np_data[mask] = self.epsilon
+            data_distribution = pd.DataFrame(np_data, columns=self.data_raw.columns)
+            data_size = len(self.data)
+            for att_label in range(len(data_distribution.columns)):
+                for col_loc in range(len(self.ls_mapping_chain_by_col[att_label])):
+                    value = self.ls_mapping_chain_by_col[att_label]['scaled'][col_loc]
+                    value_count = np.sum(self.data[:, att_label] == value)
+                    value_proportion = value_count / data_size
+                    data_distribution.iloc[col_loc, att_label] = value_proportion
+            self._priors = data_distribution
 
     # TODO: remove all recur functions to another file, because they are not related to the class
     def recur_mean(self, mean1, count1, mean2, count2):
@@ -398,7 +410,6 @@ class InfoClus:
             print("")
         print("SI: ", self._si_opt)
 
-
         return self._clustering_opt, self.embedding
 
     ######################################## step 3: run InfoClus by agglomerative ########################################
@@ -499,6 +510,7 @@ class InfoClus:
         print("considering kmeans", end='')
         for i in range(KMEANS_COUNT):
             k = self.model.n_clusters + i
+            clustering_info_k = {}
             model = KMeans(n_clusters=k)
             model.fit(self.embedding)
             clustering_new = model.labels_
@@ -506,20 +518,41 @@ class InfoClus:
             for idx, label in enumerate(clustering_new):
                 index_dict[label].append(idx)
             ics=[]
-            for cluster in range(k):
-                index_cluster = index_dict[cluster]
+            for cluster_label in range(k):
+                index_cluster = index_dict[cluster_label]
                 cluster = self.data[index_cluster]
-                mean_cluster = np.mean(cluster)
-                var_cluster = np.var(cluster)
-                count_cluster = len(cluster)
-                ic_cluster = self.ic_one_info(mean_cluster,var_cluster,count_cluster)
-                ics.append(ic_cluster)
+                if self.global_var_type == 'mixed':
+                    pass
+                elif self.global_var_type == 'numeric':
+                    mean_cluster = np.mean(cluster, axis=0)
+                    var_cluster = np.var(cluster, axis=0)
+                    count_cluster = len(cluster)
+                    ic_cluster = self.ic_one_info(mean_cluster,var_cluster,count_cluster)
+                    ics.append(ic_cluster)
+                elif self.global_var_type == 'categorical':
+                    count_of_uniques_per_attribute = [len(df) for df in self.ls_mapping_chain_by_col]
+                    np_data = np.zeros((max(count_of_uniques_per_attribute), len(self.data_raw.columns)))
+                    mask = np.arange(np_data.shape[0])[:, None] >= np.array(count_of_uniques_per_attribute)
+                    np_data[mask] = self.epsilon
+                    cluster_distribution = pd.DataFrame(np_data, columns=self.data_raw.columns)
+                    cluster_size = len(cluster)
+                    for att_label in range(len(cluster_distribution.columns)):
+                        for col_loc in range(len(self.ls_mapping_chain_by_col[att_label])):
+                            value = self.ls_mapping_chain_by_col[att_label]['scaled'][col_loc]
+                            value_count = np.sum(cluster[:, att_label] == value)
+                            value_proportion = value_count / cluster_size
+                            cluster_distribution.iloc[col_loc, att_label] = value_proportion
+                    ic_cluster = self.ic_categorical(cluster_distribution, cluster_size)
+                    clustering_info_k[cluster_label] = [cluster_distribution, cluster_size]
+                    ics.append(ic_cluster)
             attributes, ic_attributes, dl, si_val = self.calc_optimal_attributes_dl(ics)
             if si_val > self._si_opt:
                 self._clustering_opt = clustering_new
                 self._attributes_opt = attributes
                 self._si_opt = si_val
                 self._ic_opt = ic_attributes
+                if self.global_var_type == 'categorical':
+                    self._clustersRelatedInfo = clustering_info_k
         print("done")
 
 
@@ -786,7 +819,10 @@ class InfoClus:
                     print('unsupported attribute type for visualization:', att_type)
                 if show_now:
                     fig.show()
-                fig_path = f"../figs/{self.name} a{self.alpha} b{self.beta} C{cluster_label}_{overlap:.2%} {att_name} -Infoclus"
+                if isinstance(self.model, AgglomerativeClustering):
+                    fig_path = f"../figs/{self.name} agglomerative_{self.model.linkage} a{self.alpha} b{self.beta} C{cluster_label}_{overlap:.2%} {att_name} -Infoclus"
+                if isinstance(self.model, KMeans):
+                    fig_path = f"../figs/{self.name} kmeans_{self.model.n_clusters} a{self.alpha} b{self.beta} C{cluster_label}_{overlap:.2%} {att_name} -Infoclus"
                 fig.savefig(f'{fig_path}.pdf')
                 fig.savefig(f'{fig_path}.png')
 

@@ -20,13 +20,13 @@ sys.path.append(ROOT_DIR)
 sys.path.append(os.path.join(ROOT_DIR, "src"))
 
 # dataset_name = 'cytometry_2500'
-# dataset_name = 'german_socio_eco'
-dataset_name = 'mushroom'
+dataset_name = 'german_socio_eco'
+# dataset_name = 'mushroom'
 
 embedding_name = 'tsne'
 
-model = AgglomerativeClustering(linkage='single', distance_threshold=0, n_clusters=None)
-# model = KMeans(n_clusters=3, random_state=42)
+# model = AgglomerativeClustering(linkage='single', distance_threshold=0, n_clusters=None)
+model = KMeans(n_clusters=3, random_state=42)
 
 if isinstance(model, AgglomerativeClustering):
     infoclus_object_path = os.path.join(ROOT_DIR, 'data', dataset_name, f'{dataset_name}_{embedding_name}_agglomerative.pkl')
@@ -40,12 +40,12 @@ if if_exists:
 else:
     infoclus = InfoClus(dataset_name=dataset_name, main_emb=embedding_name, model=model)
 
-alpha = 800
+alpha = 50
 beta = 1.5
 min_att=2
 max_att=5
-runtime_id=5
+runtime_id=3
 infoclus.optimise(alpha=alpha,beta=beta,min_att=min_att,max_att=max_att,runtime_id=runtime_id)
 
-infoclus.visualize_result(True)
+infoclus.visualize_result(show_now=True)
 
