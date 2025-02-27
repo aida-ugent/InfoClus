@@ -4,18 +4,17 @@ import os
 import collections
 import time
 import copy
-import math
 
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.cluster import AgglomerativeClustering, KMeans
+
+from caching import from_cache, to_cache
+from utils import get_git_root
 import infoclus_utils as utils
 
-from sklearn.cluster import AgglomerativeClustering, KMeans
-from caching import from_cache, to_cache
-from src.infoclus_utils import kl_gaussian
-from utils import get_git_root
 from collections import defaultdict
 
 RUNTIME_OPTIONS = [0.01, 0.5, 1, 5, 10, 30, 60, 180, 300, 600, 1800, 3600, np.inf]
@@ -23,6 +22,9 @@ VAR_TPYE_THRESHOLD = 20
 REPLACE_NAN = 0
 EPSILON= 0.00001
 KMEANS_COUNT = 30 # How many kmeans with different k we are going to consider, starting from the k passed in initailization
+
+Allow_cache = True
+Show_brief_result = False # if False, show clusters and attributes
 
 ROOT = get_git_root()
 DATA_FOLDER = os.path.join(ROOT, 'data')
@@ -61,6 +63,8 @@ class InfoClus:
         :param main_emb: the embedding type to be used for clustering
         :param model: the pre-clustering model to be used to offer candidate clusters
         '''
+        print('Initializing InfoClus ...')
+        tic_initialization = time.time()
         self.name = dataset_name
         if data_folder is None:
             self.dataset_folder = os.path.join(DATA_FOLDER, dataset_name)
@@ -121,15 +125,27 @@ class InfoClus:
         if isinstance(self.model, AgglomerativeClustering):
             self._fit_model()
             self._create_linkage()
-            file_path = os.path.join(self.dataset_folder, f'{self.name}_{self.emb_name}_agglomerative.pkl')
+            file_path = os.path.join(self.dataset_folder, f'{self.name}_{self.emb_name}_agglomerative_{self.model.linkage}.pkl')
             self._calc_priors_agglomerative()
         if isinstance(self.model, KMeans):
-            file_path = os.path.join(self.dataset_folder, f'{self.name}_{self.emb_name}_kmeans.pkl')
+            file_path = os.path.join(self.dataset_folder, f'{self.name}_{self.emb_name}_kmeans_{self.model.n_clusters}.pkl')
             self._calc_priors_kmeans() # todo, merge two _calc_priors as one
 
-        with open(file_path, "wb") as file:
-            pickle.dump(self, file)
-        print(f'initialization done, instance saved to {file_path}')
+        if Allow_cache:
+            with open(file_path, "wb") as file:
+                pickle.dump(self, file)
+            print(f'instance saved to {file_path}')
+        toc_initialization = time.time()
+        print(f'Initialization done, time: {toc_initialization - tic_initialization} s')
+        scalability_file = os.path.join(ROOT, 'data', 'cytometry', 'scalability_output.csv')
+        if os.path.exists(scalability_file):
+            new_data = {
+            "initialization_time": toc_initialization-tic_initialization
+            }
+            new_index = self.name
+            df = pd.read_csv(scalability_file, index_col="sample_size")
+            df.loc[new_index] = new_data
+            df.to_csv(scalability_file, index=True)
 
     def _fit_model(self):
         '''
@@ -396,19 +412,26 @@ class InfoClus:
                 self._run_infoclus_agglomerative()
             if isinstance(self.model, KMeans):
                 self._run_infoclus_kmeans()
-            self.create_cache_version(cache_name)
+            if Allow_cache:
+                self.create_cache_version(cache_name)
 
-        print(f'\nInfoClus - Dataset: {self.name} Emb: {self.emb_name} Alpha: {self.alpha} Beta: {self.beta} Ref. Runtime: {self.runtime}')
-        print(f'Count of Clusters: {len(set(self._clustering_opt))}')
-        clusters = list(range(self._clusterlabel_max + 1))
-        for cluster_idx in range(len(self._attributes_opt)):
-            print(f"    cluster {cluster_idx}:")
-            print(f'        count of points: {sum(self._clustering_opt == cluster_idx)}')
-            print(f'        attributes: ', end='')
-            for j in self._attributes_opt[cluster_idx]:
-                print(f'{self.data_raw.columns[j]} ', end='')
-            print("")
-        print("SI: ", self._si_opt)
+        if Show_brief_result:
+            num_att = 0
+            for cluster_idx in range(len(self._attributes_opt)):
+                num_att += len(self._attributes_opt[cluster_idx])
+            print(f'{self.name} {self.emb_name} a: {self.alpha} b: {self.beta} rt: {self.runtime} s num of attr.: {num_att} \n')
+        else:
+            print(f'\nInfoClus - Dataset: {self.name} Emb: {self.emb_name} Alpha: {self.alpha} Beta: {self.beta} Ref. Runtime: {self.runtime}')
+            print(f'Count of Clusters: {len(set(self._clustering_opt))}')
+            clusters = list(range(self._clusterlabel_max + 1))
+            for cluster_idx in range(len(self._attributes_opt)):
+                print(f"    cluster {cluster_idx}:")
+                print(f'        count of points: {sum(self._clustering_opt == cluster_idx)}')
+                print(f'        attributes: ', end='')
+                for j in self._attributes_opt[cluster_idx]:
+                    print(f'{self.data_raw.columns[j]} ', end='')
+                print("")
+            print("SI: ", self._si_opt)
 
         return self._clustering_opt, self.embedding
 
@@ -454,9 +477,12 @@ class InfoClus:
         local_optimum = False
         considered_splitting_times = 0
         start = time.time()
-        print("splitting start ... ", end='')
+        print("\nsplitting start ... ")
+        tic_split = time.time()
+        considered_clusering = 0
         while nodes and (time.time() - start < self.runtime):
             considered_splitting_times += 1
+            considered_clusering += len(nodes)
             # get the best node to split
             nodes, clustering_new, attributes_new, si_val_new, ic_new, ic_att_new, dl_new, opt_node, clustering_new_info = self._choose_optimal_split(
                 nodes,
@@ -487,8 +513,31 @@ class InfoClus:
                 self._nodes_opt = copy.deepcopy(nodes)
             else:
                 local_optimum = True
-        print("done")
-        print(f'considered splitting times: {considered_splitting_times}')
+        toc_split = time.time()
+        print("Splitting done")
+        split_time = toc_split - tic_split
+        count_considered_splitting = considered_splitting_times
+        count_clustering = considered_clusering
+        ave_splitting_time = split_time / count_considered_splitting
+        ave_clustering_time = split_time / count_clustering
+        print(f'time: {split_time} s;  considered splitting times: {count_considered_splitting}, considered clustering: {count_clustering}')
+        print(f'Ave. splitting time: {ave_splitting_time} s; Ave. clustering time: {ave_clustering_time} s')
+        scalability_file = os.path.join(ROOT, 'data', 'cytometry', 'scalability_output.csv')
+        if os.path.exists(scalability_file):
+            new_data = {
+            "splitting_runtime": split_time,
+            "splitting_count": count_considered_splitting,
+            "ave_splitting_time": ave_splitting_time,
+            "clustering_count": count_clustering,
+            "ave_clustering_time": ave_clustering_time
+            }
+            new_index = self.name
+            df = pd.read_csv(scalability_file, index_col="sample_size")
+            init_time = df.loc[new_index]["initialization_time"]
+            new_data["initialization_time"] = init_time
+            df.loc[new_index] = new_data
+            df.to_csv(scalability_file, index=True)
+            print(f'{self.name} csv saved to {scalability_file}')
 
     # in principle, the code is done, but I need to run to check is everything ok
     def _run_infoclus_kmeans(self):
@@ -511,7 +560,7 @@ class InfoClus:
         for i in range(KMEANS_COUNT):
             k = self.model.n_clusters + i
             clustering_info_k = {}
-            model = KMeans(n_clusters=k)
+            model = KMeans(n_clusters=k, random_state=self.model.random_state)
             model.fit(self.embedding)
             clustering_new = model.labels_
             index_dict = defaultdict(list)
@@ -553,7 +602,7 @@ class InfoClus:
                 self._ic_opt = ic_attributes
                 if self.global_var_type == 'categorical':
                     self._clustersRelatedInfo = clustering_info_k
-        print("done")
+        print(f"\n done K: {k}")
 
 
     def _choose_optimal_split(self, nodes, clustering=None, clusteringInfo=None, max_cluster_label=0, ic_temp=None):
@@ -726,7 +775,8 @@ class InfoClus:
         return attributes_total, ic_attributes, dl, best_comb_val
     
     def create_cache_version(self, cache_name):
-        previously_calculated = {"clustering": self._clustering_opt,
+        previously_calculated = {"embedding": self.embedding,
+                                 "clustering": self._clustering_opt,
                                  "split": self._split_nodes_opt,
                                  "maxlabel": self._clusterlabel_max,
                                  "global_var_type": self.global_var_type,
@@ -767,7 +817,7 @@ class InfoClus:
         return cache_name, previously_calculated
 
 
-    def visualize_result(self, show_now = False):
+    def visualize_result(self, show_now_embedding = True, save_embedding = True, show_now_explanation = False, save_explanation = True):
 
         # visualize clustering on embedding
         data = self.data_raw.values
@@ -778,20 +828,31 @@ class InfoClus:
         num_classes = len(unique_classes)
 
         colors = sns.color_palette("colorblind", num_classes)  # HUSL generates distinguishable colors
-        plt.figure(figsize=(8, 6))
+        fig = plt.figure(figsize=(8, 6))
         for i, cls in enumerate(unique_classes):
             # Select points corresponding to the current class
             class_points = embedding[labels == cls]
-            lable = f'cluster {cls}'
+            lable = f'Cluster {cls}'
             plt.scatter(class_points[:, 0], class_points[:, 1],
-                        color=colors[i], label=lable, s=15)
-        plt.legend()
-        # plt.title("Clustering of Cytometry 2500 - computed by Infoclus")
-        fig_path = f"../figs/{self.name} {self.alpha} {self.beta} -Infoclus"
-        plt.savefig(f'{fig_path}.pdf')
-        plt.savefig(f'{fig_path}.png')
-        if show_now:
-            plt.show()
+                        color=colors[i], label=lable, s=20)
+        plt.tight_layout()
+
+        num_att = 0
+        for cluster_idx in range(len(self._attributes_opt)):
+            num_att += len(self._attributes_opt[cluster_idx])
+        plt.text(x=50, y=-50, s=num_att, fontsize=70, fontweight= 'bold', color='black', ha='right', va='bottom')
+        # plt.legend(fontsize=16)
+        plt.axis('off')
+        if show_now_embedding:
+            fig.show()
+        if save_embedding:
+            if isinstance(self.model, AgglomerativeClustering):
+                fig_path = f"../figs/embedding_agglomerative_{self.model.linkage}_a{self.alpha}_b{self.beta}-{self.name}_Infoclus"
+                fig_path = fig_path.replace(" ", "_")
+            if isinstance(self.model, KMeans):
+                fig_path = f"../figs/embedding_kmeans_{self.model.n_clusters}_a{self.alpha}_b{self.beta}-{self.name}_Infoclus"
+                fig_path = fig_path.replace(" ", "_")
+            fig.savefig(f'{fig_path}.pdf')
 
         # visualize distributions of attributes
         for cluster_label in unique_classes:
@@ -817,41 +878,13 @@ class InfoClus:
                     fig = utils.get_kde(data_att, cluster_att, att_name, cluster_label, cluster_color)
                 else:
                     print('unsupported attribute type for visualization:', att_type)
-                if show_now:
+                if show_now_explanation:
                     fig.show()
-                if isinstance(self.model, AgglomerativeClustering):
-                    fig_path = f"../figs/{self.name} agglomerative_{self.model.linkage} a{self.alpha} b{self.beta} C{cluster_label}_{overlap:.2%} {att_name} -Infoclus"
-                if isinstance(self.model, KMeans):
-                    fig_path = f"../figs/{self.name} kmeans_{self.model.n_clusters} a{self.alpha} b{self.beta} C{cluster_label}_{overlap:.2%} {att_name} -Infoclus"
-                fig.savefig(f'{fig_path}.pdf')
-                fig.savefig(f'{fig_path}.png')
-
-    # # TODO: rename the variables in adata to match frontend
-    # def update_adata(self):
-    #
-    #     import anndata as ad
-    #     file_name = os.path.join(self.dataset_folder, f'{self.name}.h5ad')
-    #     adata = ad.read_h5ad(file_name)
-    # inf
-    #     adata.obs['infoclus_clustering'] = self._clustering_opt
-    #     adata.uns['InfoClus'] = {}
-    #     adata.uns['InfoClus']['si'] = self._si_opt
-    #     adata.uns['InfoClus']['main_emb'] = self.emb_name
-    #     adata.uns['InfoClus']['hyperparameters'] = {}
-    #     adata.uns['InfoClus']['hyperparameters']['alpha'] = self.alpha
-    #     adata.uns['InfoClus']['hyperparameters']['beta'] = self.beta
-    #     adata.uns['InfoClus']['hyperparameters']['mina'] = self.min_att
-    #     adata.uns['InfoClus']['hyperparameters']['maxa'] = self.max_att
-    #     adata.uns['InfoClus']['hyperparameters']['runid'] = self.runtime_id
-    #     for cluster in range(self._clusterlabel_max+1):
-    #         # todo: decide whether to store statitics based on raw data instead of scaled data
-    #         adata.uns['InfoClus'][f'cluster_{cluster}'] = {}
-    #         adata.uns['InfoClus'][f'cluster_{cluster}']['mean'] = self._clustersRelatedInfo[cluster][0]
-    #         adata.uns['InfoClus'][f'cluster_{cluster}']['var'] = self._clustersRelatedInfo[cluster][1]
-    #         adata.uns['InfoClus'][f'cluster_{cluster}']['count'] = self._clustersRelatedInfo[cluster][2]
-    #         adata.uns['InfoClus'][f'cluster_{cluster}']['ic'] = np.array(self._ic_opt[cluster])
-    #         adata.uns['InfoClus'][f'cluster_{cluster}']['attributes'] = self._attributes_opt[cluster]
-    #     adata.var['prior_mean'] = self._priors[:,0]
-    #     adata.var['prior_var'] = self._priors[:,1]
-    #     adata.write(file_name)
-    #     print(f'update {file_name} successfully')
+                if save_explanation:
+                    if isinstance(self.model, AgglomerativeClustering):
+                        fig_path = f"../figs/agglomerative_{self.model.linkage}_a{self.alpha}_b{self.beta}_C{cluster_label}_{overlap:.2}_{att_name}-{self.name}_Infoclus"
+                        fig_path = fig_path.replace(" ", "_")
+                    if isinstance(self.model, KMeans):
+                        fig_path = f"../figs/kmeans_{self.model.n_clusters}_a{self.alpha}_b{self.beta}_C{cluster_label}_{overlap:.2}_{att_name}-{self.name}_Infoclus"
+                        fig_path = fig_path.replace(" ", "_")
+                    fig.savefig(f'{fig_path}.pdf')

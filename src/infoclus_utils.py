@@ -151,12 +151,20 @@ def get_kde(data_att: np.ndarray, cluster_att: np.ndarray, att_name: str, cluste
     percentage = len(cluster_att) / len(data_att)
 
     # Fit KDE models
-    # grid = GridSearchCV(KernelDensity(kernel='gaussian'), {'bandwidth': np.linspace(0.1, 5.0, 30)})
-    # grid.fit(data_att.reshape(-1, 1))
-    # optimal_bandwidth = grid.best_params_['bandwidth']
+    q_c1 = np.percentile(cluster_att, 25)
+    q_c3 = np.percentile(cluster_att, 75)
+    iqr_c = q_c3 - q_c1
+    q_a1 = np.percentile(data_att, 25)
+    q_a3 = np.percentile(data_att, 75)
+    iqr_a = q_a3 - q_a1
+    min_c = min(np.std(cluster_att), iqr_c / 1.34 + 0.00001)
+    min_a = min(np.std(data_att), iqr_a / 1.34 + 0.00001)
+    bandwidth_c = 0.9 * min_c * cluster_att.shape[0] ** (-0.2)
+    bandwidth_a = 0.9 * min_a * data_att.shape[0] ** (-0.2)
+    bandwidth = max(bandwidth_a, bandwidth_c)
 
-    kde_data = KernelDensity(kernel='gaussian', bandwidth='silverman').fit(data_att.reshape(-1, 1))
-    kde_cluster = KernelDensity(kernel='gaussian', bandwidth=kde_data.bandwidth_).fit(cluster_att.reshape(-1, 1))
+    kde_data = KernelDensity(kernel='gaussian', bandwidth=bandwidth).fit(data_att.reshape(-1, 1))
+    kde_cluster = KernelDensity(kernel='gaussian', bandwidth=bandwidth).fit(cluster_att.reshape(-1, 1))
 
     # Generate x values
     x_vals = np.linspace(min(min(data_att), min(cluster_att)), max(max(data_att), max(cluster_att)), 1000)
@@ -170,15 +178,19 @@ def get_kde(data_att: np.ndarray, cluster_att: np.ndarray, att_name: str, cluste
     # Create the plot
     fig, ax = plt.subplots(figsize=(6, 5))
     ax.plot(x_vals, kde_data_vals, label=f'Data', color='black', linewidth=2)
-    ax.plot(x_vals, kde_cluster_vals, label=f'C {cluster_id}', color=cluster_color, linestyle='dotted',
+    ax.plot(x_vals, kde_cluster_vals, label=f'Cluster {cluster_id}', color=cluster_color, linestyle='dotted',
             linewidth=4)
-    ax.fill_between(x_vals, overlap_density, color=cluster_color, alpha=0.5, label=f'{percentage:.2%}')
+    ax.fill_between(x_vals, overlap_density, color=cluster_color, alpha=0.5, label=f'{percentage:.2%} Overlapped by cluster')
 
     # Labels and legend
-    ax.set_xlabel(f"{att_name}", fontsize=25)
+    ax.set_xlabel(f"{att_name}", fontsize=50)
+    # ax.set_ylabel('Distribution', fontsize=25)
+    ax.set_yticks([])
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
     fig.tight_layout()
-    # ax.set_ylabel('Density', fontsize=18)
-    ax.legend(fontsize=20)
+    # ax.legend(fontsize=15)
     return fig
 
 def get_barchart(df_mapping_chain, dist_of_fixed_cluster_att, dist_of_att_in_data,  att_id: int, cluster_id: int, att_name: str, cluster_color, overlap: float):
@@ -194,14 +206,19 @@ def get_barchart(df_mapping_chain, dist_of_fixed_cluster_att, dist_of_att_in_dat
     width = 0.4  # Width of bars
 
     fig, ax = plt.subplots(figsize=(6, 5))
-    ax.bar(x - width / 2, sorted_dist_pre_cluster_att, width, label=f'C{cluster_id}-{overlap:.2%}', color=cluster_color)
-    ax.bar(x + width / 2, sorted_dist_prior_per_att, width, label=f'Data', color='black')
+    ax.bar(x - width / 2, sorted_dist_pre_cluster_att, width, label=f'Cluster {cluster_id}', color=cluster_color)
+    ax.bar(x + width / 2, sorted_dist_prior_per_att, width, label=f'Data - -{overlap:.2%} covered by cluster', color='black')
 
-    ax.set_xlabel(att_name, fontsize=25)
-    # ax.set_ylabel("Proportion")
+    ax.set_xlabel(att_name, fontsize=30)
+    ax.set_ylabel("Proportion", fontsize=30)
     ax.set_xticks(x)
-    ax.set_xticklabels(sorted_labels, rotation=20, ha='right')
-    ax.legend(fontsize=20)
+    ax.set_xticklabels(sorted_labels, rotation=20, ha='right', fontsize=12)
+    ax.set_yticks([])
+
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    ax.legend(fontsize=15)
     # ax.set_title(f"Cluster {cluster_id} - {att_name}")
 
     plt.tight_layout()
