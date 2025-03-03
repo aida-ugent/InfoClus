@@ -23,7 +23,7 @@ REPLACE_NAN = 0
 EPSILON= 0.00001
 KMEANS_COUNT = 30 # How many kmeans with different k we are going to consider, starting from the k passed in initailization
 
-Allow_cache = True
+Allow_cache = False
 Show_brief_result = False # if False, show clusters and attributes
 
 ROOT = get_git_root()
@@ -45,7 +45,7 @@ class InfoClus:
 
     ######################################## step 1: initialization ########################################
     def __init__(self, dataset_name: str, data_folder: str = None,
-                 main_emb: str = 'tsne',
+                 main_emb: str = 'tsne', embedding: np.array = None,
                  model = AgglomerativeClustering(linkage='single', distance_threshold=0, n_clusters=None),
                  alpha: int = None, beta: float = 1.5, min_att: int = 2, max_att: int = 10, runtime_id: int = 3
                  ):
@@ -91,11 +91,16 @@ class InfoClus:
             self.alpha = int(len(self.data)/10)
         else:
             self.alpha = alpha
-        self.all_embeddings = utils.get_embeddings(self.data)
-        if self.emb_name not in self.all_embeddings.keys():
-            print('Error! embedding not found!')
+        if embedding is None:
+            self.all_embeddings = utils.get_embeddings(self.data)
+            if self.emb_name not in self.all_embeddings.keys():
+                print('Error! embedding not found!')
+            else:
+                self.embedding = self.all_embeddings[self.emb_name]
         else:
-            self.embedding = self.all_embeddings[self.emb_name]
+            self.all_embeddings = {}
+            self.all_embeddings[self.emb_name] = embedding
+            self.embedding = embedding
         # TODO: change name of _dls to be more cohesive with the code
         df_var_type_complexity = utils.get_var_type_complexity(self.data_raw, VAR_TPYE_THRESHOLD)
         self.var_type = df_var_type_complexity['var_type']
@@ -514,30 +519,30 @@ class InfoClus:
             else:
                 local_optimum = True
         toc_split = time.time()
-        print("Splitting done")
-        split_time = toc_split - tic_split
-        count_considered_splitting = considered_splitting_times
-        count_clustering = considered_clusering
-        ave_splitting_time = split_time / count_considered_splitting
-        ave_clustering_time = split_time / count_clustering
-        print(f'time: {split_time} s;  considered splitting times: {count_considered_splitting}, considered clustering: {count_clustering}')
-        print(f'Ave. splitting time: {ave_splitting_time} s; Ave. clustering time: {ave_clustering_time} s')
-        scalability_file = os.path.join(ROOT, 'data', 'cytometry', 'scalability_output.csv')
-        if os.path.exists(scalability_file):
-            new_data = {
-            "splitting_runtime": split_time,
-            "splitting_count": count_considered_splitting,
-            "ave_splitting_time": ave_splitting_time,
-            "clustering_count": count_clustering,
-            "ave_clustering_time": ave_clustering_time
-            }
-            new_index = self.name
-            df = pd.read_csv(scalability_file, index_col="sample_size")
-            init_time = df.loc[new_index]["initialization_time"]
-            new_data["initialization_time"] = init_time
-            df.loc[new_index] = new_data
-            df.to_csv(scalability_file, index=True)
-            print(f'{self.name} csv saved to {scalability_file}')
+        print(f"Splitting done, iteration: {considered_splitting_times}")
+        # split_time = toc_split - tic_split
+        # count_considered_splitting = considered_splitting_times
+        # count_clustering = considered_clusering
+        # ave_splitting_time = split_time / count_considered_splitting
+        # ave_clustering_time = split_time / count_clustering
+        # print(f'time: {split_time} s;  considered splitting times: {count_considered_splitting}, considered clustering: {count_clustering}')
+        # print(f'Ave. splitting time: {ave_splitting_time} s; Ave. clustering time: {ave_clustering_time} s')
+        # scalability_file = os.path.join(ROOT, 'data', 'cytometry', 'scalability_output.csv')
+        # if os.path.exists(scalability_file):
+        #     new_data = {
+        #     "splitting_runtime": split_time,
+        #     "splitting_count": count_considered_splitting,
+        #     "ave_splitting_time": ave_splitting_time,
+        #     "clustering_count": count_clustering,
+        #     "ave_clustering_time": ave_clustering_time
+        #     }
+        #     new_index = self.name
+        #     df = pd.read_csv(scalability_file, index_col="sample_size")
+        #     init_time = df.loc[new_index]["initialization_time"]
+        #     new_data["initialization_time"] = init_time
+        #     df.loc[new_index] = new_data
+        #     df.to_csv(scalability_file, index=True)
+        #     print(f'{self.name} csv saved to {scalability_file}')
 
     # in principle, the code is done, but I need to run to check is everything ok
     def _run_infoclus_kmeans(self):
@@ -817,7 +822,7 @@ class InfoClus:
         return cache_name, previously_calculated
 
 
-    def visualize_result(self, show_now_embedding = True, save_embedding = True, show_now_explanation = False, save_explanation = True):
+    def visualize_result(self, show_now_embedding = True, save_embedding = False, show_now_explanation = False, save_explanation = False):
 
         # visualize clustering on embedding
         data = self.data_raw.values
