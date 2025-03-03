@@ -4,7 +4,7 @@ import sys
 import subprocess
 import pandas as pd
 
-from infoclus import InfoClus
+from infoclus_example import InfoClus
 from sklearn.cluster import AgglomerativeClustering, KMeans
 
 def get_root():
@@ -41,11 +41,11 @@ if if_exists:
 else:
     infoclus = InfoClus(dataset_name=dataset_name, main_emb=embedding_name, embedding= embedding, model=model)
 
-alpha = 2
-beta = 3
-min_att=2
+alpha = 1
+beta = 2
+min_att=1
 max_att=5
-runtime_id=3
+runtime_id=6
 infoclus.optimise(alpha=alpha,beta=beta,min_att=min_att,max_att=max_att,runtime_id=runtime_id)
 
 infoclus.visualize_result(show_now_embedding=True, show_now_explanation=True)
