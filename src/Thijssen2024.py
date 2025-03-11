@@ -73,31 +73,35 @@ print(infoclus.data_raw.columns)
 
 unique_classes = np.unique(top_attributes_variance_fixed)
 num_classes = len(unique_classes)
-colors = sns.color_palette("colorblind", num_classes)  # HUSL generates distinguishable colors
+colors = sns.color_palette("muted", num_classes)  # HUSL generates distinguishable colors
 plt.figure(figsize=(8, 6))
 for i, cls in enumerate(unique_classes):
     # Select points corresponding to the current class
     class_points = data_ld[top_attributes_variance_fixed == cls]
     lable = infoclus.data_raw.columns[cls]
     plt.scatter(class_points[:, 0], class_points[:, 1],
-                color=colors[i], label=lable, s=15)
-plt.legend()
-plt.title("Cytometry 2500 colored by variance_fixed - Thijssen2024")
+                color=colors[i], label=lable, s=18)
+plt.legend(fontsize=16,loc='best',ncol=2)
+plt.axis('off')
+plt.tight_layout()
+# plt.title("Cytometry 2500 colored by variance_fixed - Thijssen2024")
 plt.savefig("Cytometry 2500 colored by variance_fixed - Thijssen2024")
 plt.show()
 
 unique_classes = np.unique(top_attributes_values)
 num_classes = len(unique_classes)
-colors = sns.color_palette("colorblind", num_classes)  # HUSL generates distinguishable colors
+colors = sns.color_palette("deep", num_classes)  # HUSL generates distinguishable colors
 plt.figure(figsize=(8, 6))
 for i, cls in enumerate(unique_classes):
     # Select points corresponding to the current class
     class_points = data_ld[top_attributes_values == cls]
     lable = infoclus.data_raw.columns[cls]
     plt.scatter(class_points[:, 0], class_points[:, 1],
-                color=colors[i], label=lable, s=15)
-plt.legend()
-plt.title("Cytometry 2500 colored by values - Thijssen2024")
+                color=colors[i], label=lable, s=18)
+plt.legend(fontsize=16,loc='best',ncol=2)
+plt.axis('off')
+plt.tight_layout()
+# plt.title("Cytometry 2500 colored by values - Thijssen2024")
 plt.savefig("Cytometry 2500 colored by values - Thijssen2024")
 plt.show()
 

@@ -23,7 +23,7 @@ REPLACE_NAN = 0
 EPSILON= 0.00001
 KMEANS_COUNT = 30 # How many kmeans with different k we are going to consider, starting from the k passed in initailization
 
-Allow_cache = False
+Allow_cache = True
 Show_brief_result = False # if False, show clusters and attributes
 
 ROOT = get_git_root()
@@ -845,8 +845,8 @@ class InfoClus:
         num_att = 0
         for cluster_idx in range(len(self._attributes_opt)):
             num_att += len(self._attributes_opt[cluster_idx])
-        plt.text(x=50, y=-50, s=num_att, fontsize=70, fontweight= 'bold', color='black', ha='right', va='bottom')
-        # plt.legend(fontsize=16)
+        # plt.text(x=50, y=-50, s=num_att, fontsize=70, fontweight= 'bold', color='black', ha='right', va='bottom')
+        plt.legend(fontsize=16)
         plt.axis('off')
         if show_now_embedding:
             fig.show()
@@ -857,7 +857,7 @@ class InfoClus:
             if isinstance(self.model, KMeans):
                 fig_path = f"../figs/embedding_kmeans_{self.model.n_clusters}_a{self.alpha}_b{self.beta}-{self.name}_Infoclus"
                 fig_path = fig_path.replace(" ", "_")
-            fig.savefig(f'{fig_path}.pdf')
+            fig.savefig(f'{fig_path}.png')
 
         # visualize distributions of attributes
         for cluster_label in unique_classes:
@@ -892,4 +892,4 @@ class InfoClus:
                     if isinstance(self.model, KMeans):
                         fig_path = f"../figs/kmeans_{self.model.n_clusters}_a{self.alpha}_b{self.beta}_C{cluster_label}_{overlap:.2}_{att_name}-{self.name}_Infoclus"
                         fig_path = fig_path.replace(" ", "_")
-                    fig.savefig(f'{fig_path}.pdf')
+                    fig.savefig(f'{fig_path}.png')

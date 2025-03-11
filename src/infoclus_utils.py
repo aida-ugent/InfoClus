@@ -177,20 +177,20 @@ def get_kde(data_att: np.ndarray, cluster_att: np.ndarray, att_name: str, cluste
 
     # Create the plot
     fig, ax = plt.subplots(figsize=(6, 5))
-    ax.plot(x_vals, kde_data_vals, label=f'Data', color='black', linewidth=2)
     ax.plot(x_vals, kde_cluster_vals, label=f'Cluster {cluster_id}', color=cluster_color, linestyle='dotted',
             linewidth=4)
-    ax.fill_between(x_vals, overlap_density, color=cluster_color, alpha=0.5, label=f'{percentage:.2%} Overlapped by cluster')
+    ax.plot(x_vals, kde_data_vals, label=f'the Whole Data', color='black', linewidth=2)
+    ax.fill_between(x_vals, overlap_density, color=cluster_color, alpha=0.5, label=f'Part of Data covered by Cluster')
 
     # Labels and legend
     ax.set_xlabel(f"{att_name}", fontsize=50)
-    # ax.set_ylabel('Distribution', fontsize=25)
+    ax.set_ylabel('Distribution', fontsize=25)
     ax.set_yticks([])
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.spines['left'].set_visible(False)
     fig.tight_layout()
-    # ax.legend(fontsize=15)
+    ax.legend(fontsize=16,loc='best')
     return fig
 
 def get_barchart(df_mapping_chain, dist_of_fixed_cluster_att, dist_of_att_in_data,  att_id: int, cluster_id: int, att_name: str, cluster_color, overlap: float):
@@ -207,18 +207,19 @@ def get_barchart(df_mapping_chain, dist_of_fixed_cluster_att, dist_of_att_in_dat
 
     fig, ax = plt.subplots(figsize=(6, 5))
     ax.bar(x - width / 2, sorted_dist_pre_cluster_att, width, label=f'Cluster {cluster_id}', color=cluster_color)
-    ax.bar(x + width / 2, sorted_dist_prior_per_att, width, label=f'Data - -{overlap:.2%} covered by cluster', color='black')
+    # ax.bar(x + width / 2, sorted_dist_prior_per_att, width, label=f'Data - -{overlap:.2%} covered by cluster', color='black')
+    ax.bar(x + width / 2, sorted_dist_prior_per_att, width, label=f'the Whole Data', color='black')
 
     ax.set_xlabel(att_name, fontsize=30)
     ax.set_ylabel("Proportion", fontsize=30)
-    ax.set_xticks(x)
-    ax.set_xticklabels(sorted_labels, rotation=20, ha='right', fontsize=12)
+    ax.set_xticks([])
+    # ax.set_xticklabels(sorted_labels, rotation=20, ha='right', fontsize=12)
     ax.set_yticks([])
 
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.spines['left'].set_visible(False)
-    ax.legend(fontsize=15)
+    ax.legend(fontsize=18, loc='best')
     # ax.set_title(f"Cluster {cluster_id} - {att_name}")
 
     plt.tight_layout()
