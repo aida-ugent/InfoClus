@@ -10,8 +10,6 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.neighbors import KernelDensity
 import matplotlib.pyplot as plt
-from sklearn.model_selection import GridSearchCV
-from utils import get_git_root
 
 def kl_gaussian(m1, s1, m2, s2, epsilon=0.00001):
     # kl(custer||prior)
