@@ -8,15 +8,30 @@ import plotly.graph_objects as go
 import yaml
 import sys, os
 
+# def get_root():
+#     try:
+#         root = subprocess.check_output(
+#             ["git", "rev-parse", "--show-toplevel"],
+#             universal_newlines=True
+#         ).strip()
+#         return root
+#     except subprocess.CalledProcessError:
+#         raise RuntimeError("This directory is not a Git repository.")
+
 def get_root():
-    try:
-        root = subprocess.check_output(
-            ["git", "rev-parse", "--show-toplevel"],
-            universal_newlines=True
-        ).strip()
-        return root
-    except subprocess.CalledProcessError:
-        raise RuntimeError("This directory is not a Git repository.")
+    # Get the directory of the current script
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # Go up the directory tree until you find a specific file (like `setup.py` or a config file)
+    # In this case, we can stop when we find the root of the project (you can customize the condition)
+    while not os.path.exists(os.path.join(current_dir,
+                                          'readme.md')):  # You can change 'setup.py' to something else (e.g., README.md or a custom marker file)
+        parent_dir = os.path.dirname(current_dir)
+        if parent_dir == current_dir:  # Stop when you reach the root of the filesystem
+            raise RuntimeError("Project root not found.")
+        current_dir = parent_dir
+
+    return current_dir
 ROOT_DIR = get_root()
 sys.path.append(ROOT_DIR)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -24,7 +39,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dash import dcc
 from dash import html
-from src.utils import get_git_root
 from src.infoclus import InfoClus
 from sklearn.neighbors import KernelDensity
 
