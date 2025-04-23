@@ -45,7 +45,7 @@ if if_exists:
 else:
     infoclus = InfoClus(dataset_name=dataset_name, main_emb=embedding_name, model=model)
 
-alpha = 1500
+alpha = 1700
 beta = 1.5
 min_att=2
 max_att=5

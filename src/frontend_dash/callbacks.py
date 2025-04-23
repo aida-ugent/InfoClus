@@ -7,7 +7,7 @@ from dash.dependencies import Input, Output, State
 from layout import *
 from src.frontend_dash.layout import ROOT_DIR
 from utils import *
-from src.utils import load_data, get_project_root
+from src.infoclus_utils import get_project_root
 from src.infoclus import InfoClus
 
 ROOT_DIR = get_project_root()

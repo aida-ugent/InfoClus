@@ -7,7 +7,7 @@
           <value>
             <JupyterConnectionParameters>
               <option name="managed" value="true" />
-              <option name="sdkName" value="Python 3.11 (myenv_Trace)" />
+              <option name="sdkName" value="Python 3.11 virtualenv at C:\Users\Administrator\OneDrive - UGent\Documents\GitHub\ExClus\venv_infoclus" />
             </JupyterConnectionParameters>
           </value>
         </entry>

@@ -12,7 +12,7 @@ import seaborn as sns
 from sklearn.cluster import AgglomerativeClustering, KMeans
 
 from caching import from_cache, to_cache
-from utils import get_project_root
+# from utils import get_project_root
 import infoclus_utils as utils
 
 from collections import defaultdict
@@ -23,10 +23,10 @@ REPLACE_NAN = 0
 EPSILON= 0.00001
 KMEANS_COUNT = 30 # How many kmeans with different k we are going to consider, starting from the k passed in initailization
 
-Allow_cache = True
+Allow_cache = False
 Show_brief_result = False # if False, show clusters and attributes
 
-ROOT = get_project_root()
+ROOT = utils.get_project_root()
 DATA_FOLDER = os.path.join(ROOT, 'data')
 
 class InfoClus:
