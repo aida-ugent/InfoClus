@@ -399,7 +399,9 @@ class InfoClus:
         return ic
 
     ######################################## step 2: optimise: either run InfoClus or read from cache ########################################
-    def optimise(self, alpha=None, beta=None, min_att=None, max_att=None, runtime_id=3, Allow_cache=False, Show_brief_result=False):
+    def optimise(self, alpha=None, beta=None, min_att=None, max_att=None, runtime_id=3,
+                 Allow_cache=False, Show_brief_result=False,
+                 splitting_startegy: str = 'by_node'):
         '''
         optimise result with current hyperparameters, the process is as follows:
         1. update hyperparameters of self
@@ -427,7 +429,7 @@ class InfoClus:
             self._si_opt = 0
             # todo: merge the two run_infoclus into one, and using if condition to control
             if isinstance(self.model, AgglomerativeClustering):
-                self._run_infoclus_agglomerative()
+                self._run_infoclus_agglomerative(splitting_startegy)
             if isinstance(self.model, KMeans):
                 self._run_infoclus_kmeans()
             if Allow_cache:
@@ -441,7 +443,6 @@ class InfoClus:
         else:
             print(f'\nInfoClus - Dataset: {self.name} Emb: {self.emb_name} Alpha: {self.alpha} Beta: {self.beta} Ref. Runtime: {self.runtime}')
             print(f'Count of Clusters: {len(set(self._clustering_opt))}')
-            clusters = list(range(self._clusterlabel_max + 1))
             for cluster_idx in range(len(self._attributes_opt)):
                 print(f"    cluster {cluster_idx}:")
                 print(f'        count of points: {sum(self._clustering_opt == cluster_idx)}')
@@ -454,7 +455,7 @@ class InfoClus:
         return self._clustering_opt, self.embedding
 
     ######################################## step 3: run InfoClus by agglomerative ########################################
-    def _run_infoclus_agglomerative(self):
+    def _run_infoclus_agglomerative(self, splitting_startegy: str = 'by_node'):
         '''
         Here is the core part of Infoclus algorithm, the process is as follows:
         1. initialization of all result-related variables as None
@@ -466,7 +467,6 @@ class InfoClus:
         self._clustering_opt = None  # final clustering labels for each point
         self._si_opt = 0  # value of si for this clustering
         self._clustersRelatedInfo = {}  # means, vars, and counts for each cluster
-        self._clusterlabel_max: int = 0  # maximum label, from 0
         self._attributes_opt = None  # chosen attributes for each cluster
         self._ic_opt = None  # ic of all attributes for each cluster
         self._total_ic_opt = 0
@@ -485,7 +485,6 @@ class InfoClus:
         elif self.global_var_type == 'categorical':
             clustering_new_info[0] = [self._priors, len(self.data)]
 
-        #################################### step2: iteration #########################################
         # nodes: possible splits (generating by combining nodes and their parents)
         nodes_idx = range(len(self._linkage_matrix) - 1)  # count from 0, without leaf points
         parents = self._parents[:-1]  # count from 0, without leaf points
@@ -494,68 +493,45 @@ class InfoClus:
         ic_new = None
         local_optimum = False
         considered_splitting_times = 0
-        start = time.time()
-        print("\nsplitting start ... ")
-        tic_split = time.time()
-        considered_clusering = 0
-        while nodes and (time.time() - start < self.runtime):
-            considered_splitting_times += 1
-            considered_clusering += len(nodes)
-            # get the best node to split
-            nodes, clustering_new, attributes_new, si_val_new, ic_new, ic_att_new, dl_new, opt_node, clustering_new_info = self._choose_optimal_split(
-                nodes,
-                clustering=clustering_new,
-                max_cluster_label=considered_splitting_times - 1,
-                clusteringInfo=clustering_new_info,
-                ic_temp=ic_new)
-            # if the best node in this iteration is better than current record
-            if si_val_new > self._si_opt:
-                if local_optimum:
-                    print("Local opt")
-                    print("Clusters: ", len(set(self._clustering_opt)))
-                    print("SI: ", self._si_opt)
-                #TODO: figure out the mechanism of copy and deepcopy in python, so that the time could be saved
-                self._clustering_opt = copy.deepcopy(clustering_new)
-                self._clusterlabel_max = max(set(self._clustering_opt))
-                # self._clusterlabel_max += 1
-                # if self._clusterlabel_max != max(set(self._clustering_opt)):
-                #     raise Exception('self._clusterlabel_max != len(set(self._clustering_opt))')
-                new_label = self._clusterlabel_max
-                self._split_nodes_opt.append((opt_node[0], new_label))
-                self._clustersRelatedInfo = copy.deepcopy(clustering_new_info)
-                self._attributes_opt = copy.deepcopy(attributes_new)
-                self._si_opt = si_val_new
-                self._ic_opt = copy.deepcopy(ic_new)
-                self._total_dl_opt = dl_new
-                self._total_ic_opt = ic_att_new
-                self._nodes_opt = copy.deepcopy(nodes)
-            else:
-                local_optimum = True
-        toc_split = time.time()
-        print(f"Splitting done, iteration: {considered_splitting_times}")
-        # split_time = toc_split - tic_split
-        # count_considered_splitting = considered_splitting_times
-        # count_clustering = considered_clusering
-        # ave_splitting_time = split_time / count_considered_splitting
-        # ave_clustering_time = split_time / count_clustering
-        # print(f'time: {split_time} s;  considered splitting times: {count_considered_splitting}, considered clustering: {count_clustering}')
-        # print(f'Ave. splitting time: {ave_splitting_time} s; Ave. clustering time: {ave_clustering_time} s')
-        # scalability_file = os.path.join(ROOT, 'data', 'cytometry', 'scalability_output.csv')
-        # if os.path.exists(scalability_file):
-        #     new_data = {
-        #     "splitting_runtime": split_time,
-        #     "splitting_count": count_considered_splitting,
-        #     "ave_splitting_time": ave_splitting_time,
-        #     "clustering_count": count_clustering,
-        #     "ave_clustering_time": ave_clustering_time
-        #     }
-        #     new_index = self.name
-        #     df = pd.read_csv(scalability_file, index_col="sample_size")
-        #     init_time = df.loc[new_index]["initialization_time"]
-        #     new_data["initialization_time"] = init_time
-        #     df.loc[new_index] = new_data
-        #     df.to_csv(scalability_file, index=True)
-        #     print(f'{self.name} csv saved to {scalability_file}')
+
+        #################################### step2: iteration #########################################
+        if splitting_startegy == 'by_node':
+            start = time.time()
+            print("\nsplitting start ... ")
+            considered_clusering = 0
+            while nodes and (time.time() - start < self.runtime):
+                considered_splitting_times += 1
+                considered_clusering += len(nodes)
+                # get the best node to split
+                nodes, clustering_new, attributes_new, si_val_new, ic_new, ic_att_new, dl_new, opt_node, clustering_new_info = self._choose_optimal_split(
+                    nodes,
+                    clustering=clustering_new,
+                    max_cluster_label=considered_splitting_times - 1,
+                    clusteringInfo=clustering_new_info,
+                    ic_temp=ic_new)
+                # if the best node in this iteration is better than current record
+                if si_val_new > self._si_opt:
+                    if local_optimum:
+                        print("Local opt")
+                        print("Clusters: ", len(set(self._clustering_opt)))
+                        print("SI: ", self._si_opt)
+                    #TODO: figure out the mechanism of copy and deepcopy in python, so that the time could be saved
+                    self._clustering_opt = copy.deepcopy(clustering_new)
+                    new_label = max(set(self._clustering_opt))
+                    self._split_nodes_opt.append((opt_node[0], new_label))
+                    self._clustersRelatedInfo = copy.deepcopy(clustering_new_info)
+                    self._attributes_opt = copy.deepcopy(attributes_new)
+                    self._si_opt = si_val_new
+                    self._ic_opt = copy.deepcopy(ic_new)
+                    self._total_dl_opt = dl_new
+                    self._total_ic_opt = ic_att_new
+                    self._nodes_opt = copy.deepcopy(nodes)
+                else:
+                    local_optimum = True
+            print(f"Splitting done, iteration: {considered_splitting_times}")
+        elif splitting_startegy == 'by_sibling':
+            print('under development, function allowing splitting by sibling')
+            pass
 
     # in principle, the code is done, but I need to run to check is everything ok
     def _run_infoclus_kmeans(self):
@@ -564,7 +540,6 @@ class InfoClus:
         self._clustering_opt = None  # final clustering labels for each point
         self._si_opt = 0  # value of si for this clustering
         self._clustersRelatedInfo = {}  # means, vars, and counts for each cluster
-        self._clusterlabel_max: int = 0  # maximum label, from 0
         self._attributes_opt = None  # chosen attributes for each cluster
         self._ic_opt = None  # ic of all attributes for each cluster
         self._total_ic_opt = 0
@@ -646,14 +621,14 @@ class InfoClus:
         largest_parent = None
         largest_clusteringInfo = None
 
-        # find the node that takes the highest SI
+        # ###################################### step 1: compare all nodes and find the node that takes the highest SI
         for node_idx, parent in nodes:
-            #################################### step1: split the clustering based on node #########################################
+            #################################### step1.1: split the clustering based on node #########################################
             new_clustering, new_cluster, old_cluster, idx_new, idx_old = self._node_indices_split(node_idx,
                                                                                                   pre_index=clustering,
                                                                                                   max_label=max_cluster_label)
             
-            #################################### step2: compute ics of all features for each cluster #########################################
+            #################################### step1.2: compute ics of all features for each cluster #########################################
             # get infor (mean, var, count) of new clustering
             before_split = np.append(idx_old, idx_new)
             new_clusteringInfo = copy.deepcopy(clusteringInfo)
@@ -696,10 +671,10 @@ class InfoClus:
                     ics[old_cluster] = self.ic_categorical(otherInfo[0], otherInfo[1])
                     ics.append(self.ic_categorical(nodeInfo[0], nodeInfo[1]))
 
-            #################################### step3: get the best attributes set for each cluster based on ics #########################################
+            #################################### step 1.3: get the best attributes set for each cluster based on ics #########################################
             attributes, ic_attributes, dl, si_val = self.calc_optimal_attributes_dl(ics)
 
-            #################################### step4: update the best node in this for loop #########################################
+            #################################### step 1.4: update the best node in this for loop #########################################
             if si_val > largest_si:
                 largest_si = si_val
                 largest_attributes = attributes
@@ -712,7 +687,7 @@ class InfoClus:
                 largest_ic_attributes = ic_attributes
                 largest_before_split = before_split
 
-        #################################### update nodes(for further splitting) #########################################
+        #################################### step 2: update nodes(for further splitting) #########################################
         # remove nodes based on the best node chosen
         nodes.remove([largest_idx, largest_parent])
         delete_node = largest_parent
@@ -796,7 +771,6 @@ class InfoClus:
         previously_calculated = {"embedding": self.embedding,
                                  "clustering": self._clustering_opt,
                                  "split": self._split_nodes_opt,
-                                 "maxlabel": self._clusterlabel_max,
                                  "global_var_type": self.global_var_type,
                                  "infor": self._clustersRelatedInfo,
                                  "attributes": self._attributes_opt,
@@ -821,7 +795,6 @@ class InfoClus:
             print("From cache")
             self._clustering_opt = previously_calculated["clustering"]
             self._split_nodes_opt = previously_calculated["split"]
-            self._clusterlabel_max = previously_calculated["maxlabel"]
             self.global_var_type = previously_calculated["global_var_type"]
             self._clustersRelatedInfo = previously_calculated["infor"]
             self._attributes_opt = previously_calculated["attributes"]
