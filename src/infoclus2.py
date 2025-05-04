@@ -21,8 +21,6 @@ import infoclus_utils as utils
 
 from collections import defaultdict, OrderedDict
 
-from src.scalability_experiment import samples_size
-
 RUNTIME_OPTIONS = [0.01, 0.5, 1, 5, 10, 30, 60, 180, 300, 600, 1800, 3600, np.inf]
 VAR_TPYE_THRESHOLD = 20
 REPLACE_NAN = 0
@@ -57,11 +55,11 @@ class InfoClus:
                  Base_Clusters=1000
                  ):
         '''
-        The initialization will 
+        The initialization will
         1. obtain preliminary processed information (like embeddings)
         2. further process information.
             2.1 train model to get agglomerative clustering
-            2.2 get linkage matrix and calculate the distribution of each node, 
+            2.2 get linkage matrix and calculate the distribution of each node,
                 parent of each node, points in each node and the values of each attribute
             2.3 prior information computation
 
@@ -368,12 +366,12 @@ class InfoClus:
     # given means, vars, n_samples of a cluster, return its ic, vectorization for attributes
     # todo: not revised yet
     def ic_one_info(self, means_cluster, vars_cluster, n_samples):
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter('always')
-            warningNum = len(w)
-            stds_cluster = vars_cluster ** 0.5
-            if len(w) != warningNum:
-                breakpoint()
+        # with warnings.catch_warnings(record=True) as w:
+        #     warnings.simplefilter('always')
+        #     warningNum = len(w)
+        #     stds_cluster = vars_cluster ** 0.5
+        #     if len(w) != warningNum:
+        #         breakpoint()
         # stds_cluster = vars_cluster ** 0.5
         cluster_ic = []
         if type(means_cluster) == type(None) and type(vars_cluster) == type(None):
@@ -385,9 +383,9 @@ class InfoClus:
             ic1 = n_samples * utils.kl_bernoulli(means_binary_cluster, self._priorsBernM)
             cluster_ic.extend(ic1)
         elif self.global_var_type == 'numeric':
-            means_gaussian_cluster = means_cluster
-            stds_gaussian_cluster = stds_cluster
-            ic2 = n_samples * utils.kl_gaussian(means_gaussian_cluster, stds_gaussian_cluster,
+            # means_gaussian_cluster = means_cluster
+            # stds_gaussian_cluster = stds_cluster
+            ic2 = n_samples * utils.kl_gaussian(means_cluster, vars_cluster,
                                                                    self._priorsGausM,
                                                                    self._priorsGausS)
             cluster_ic.extend(ic2)
@@ -659,20 +657,28 @@ class InfoClus:
             traceback.print_exc()
             sys.exit()
 
+        if __debug__:
+            idx_size = 0
+            for cluster_idxes in clusters_idxes:
+                idx_size += len(cluster_idxes)
+            if idx_size != len(self.data):
+                print('error')
+                traceback.print_exc()
+                sys.exit()
+
         #################################### step1.2: compute ics of all features for each cluster #########################################
         if self.global_var_type == 'mixed':
             pass
         elif self.global_var_type == 'numeric':
-            count_new_cluster_idxes = len(clusters_idxes[new_cluster_label])
-            if self.modify_hierarchical:
-                count_new_cluster_idxes = self._get_samples_count_given_medoids_idxes(clusters_idxes[new_cluster_label])
+
             statistics_for_computing_ics.append([self._meansForNodes.get(node_idx-len(self.data)),
                                                  self._varsForNodes.get(node_idx-len(self.data)),
-                                                 count_new_cluster_idxes])
+                                                 len(clusters_idxes[new_cluster_label])])
             ics.append(self.ic_one_info(
                 statistics_for_computing_ics[new_cluster_label][0],
                 statistics_for_computing_ics[new_cluster_label][1],
-                statistics_for_computing_ics[new_cluster_label][2]))
+                self._get_samples_count_given_medoids_idxes(clusters_idxes[new_cluster_label]) if self.modify_hierarchical else statistics_for_computing_ics[new_cluster_label][2]
+            ))
             statistics_for_computing_ics[old_cluster_label] = self.recur_meanVar_remove(
                 statistics_for_computing_ics[old_cluster_label][0],
                 statistics_for_computing_ics[old_cluster_label][1],
@@ -690,7 +696,7 @@ class InfoClus:
                 ics[old_cluster_label] = self.ic_one_info(
                     statistics_for_computing_ics[old_cluster_label][0],
                     statistics_for_computing_ics[old_cluster_label][1],
-                    statistics_for_computing_ics[old_cluster_label][2],
+                    self._get_samples_count_given_medoids_idxes(clusters_idxes[old_cluster_label]) if self.modify_hierarchical else statistics_for_computing_ics[old_cluster_label][2],
                 )
         elif self.global_var_type == 'categorical':
             pass
@@ -990,7 +996,7 @@ class InfoClus:
                 break
 
         return attributes_total, ic_attributes, dl, best_comb_val
-    
+
     def create_cache_version(self, cache_name):
         previously_calculated = {"embedding": self.embedding,
                                  "clustering": self._clustering_opt,

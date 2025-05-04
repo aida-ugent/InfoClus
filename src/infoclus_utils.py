@@ -14,17 +14,20 @@ import matplotlib.pyplot as plt
 def kl_gaussian(m1, s1, m2, s2, epsilon=0.00001):
     # kl(custer||prior)
 
-    mean1 = copy.copy(m1)
-    std1 = copy.copy(s1)
-    mean2 = copy.copy(m2)
-    std2 = copy.copy(s2)
+    var1 = copy.copy(s1)
+    zeros_var1 = var1 == 0
+    var1[zeros_var1] = epsilon
+    std1 = var1 ** 0.5
 
-    std1 += epsilon
-    std2 += epsilon
+    var2 = copy.copy(s2)
+    zeros_var2 = var2 == 0
+    var2[zeros_var2] = epsilon
+    std2 = var2 ** 0.5
+
     a = np.log(std2 / std1)
-    zeros_std2 = std2 == 0
-    a[zeros_std2] = 0
-    b = (std1 ** 2 + (mean1 - mean2) ** 2) / (2 * std2 ** 2)
+    # zeros_std2 = std2 == 0
+    # a[zeros_std2] = 0
+    b = (var1 + (m1 - m2) ** 2) / (2 * var2)
     return a + b - 1 / 2
 
 def kl_bernoulli(p_value, q_value, epsilon=0.00001):

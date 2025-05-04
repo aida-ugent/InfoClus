@@ -50,11 +50,11 @@ class InfoClus:
                  alpha: int = None, beta: float = 1.5, min_att: int = 2, max_att: int = 10, runtime_id: int = 3
                  ):
         '''
-        The initialization will 
+        The initialization will
         1. obtain preliminary processed information (like embeddings)
         2. further process information.
             2.1 train model to get agglomerative clustering
-            2.2 get linkage matrix and calculate the distribution of each node, 
+            2.2 get linkage matrix and calculate the distribution of each node,
                 parent of each node, points in each node and the values of each attribute
             2.3 prior information computation
 
@@ -612,8 +612,8 @@ class InfoClus:
 
     def _choose_optimal_split(self, nodes, clustering=None, clusteringInfo=None, max_cluster_label=0, ic_temp=None):
         '''
-        enumerate all possible splits(nodes) and choose the best one. 
-        
+        enumerate all possible splits(nodes) and choose the best one.
+
         For each node, the process is as follows:
         1. seperate current clustering based on node
         2. compute ics of all features for each cluster
@@ -639,7 +639,7 @@ class InfoClus:
             new_clustering, new_cluster, old_cluster, idx_new, idx_old = self._node_indices_split(node_idx,
                                                                                                   pre_index=clustering,
                                                                                                   max_label=max_cluster_label)
-            
+
             #################################### step2: compute ics of all features for each cluster #########################################
             # get infor (mean, var, count) of new clustering
             before_split = np.append(idx_old, idx_new)
@@ -712,7 +712,7 @@ class InfoClus:
 
         return nodes, largest_clustering, largest_attributes, largest_si, largest_ic, largest_ic_attributes, largest_dl, [
             largest_idx, largest_before_split, largest_parent, 0], largest_clusteringInfo
-    
+
     def _node_indices_split(self, node_idx, pre_index=None, max_label=0):
         '''
         change indices after splitting one node out into a new cluster
@@ -778,7 +778,7 @@ class InfoClus:
                 break
 
         return attributes_total, ic_attributes, dl, best_comb_val
-    
+
     def create_cache_version(self, cache_name):
         previously_calculated = {"embedding": self.embedding,
                                  "clustering": self._clustering_opt,
