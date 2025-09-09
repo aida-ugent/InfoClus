@@ -1,0 +1,8 @@
+# Ignore Python cache files and directories
+/venv/
+
+__pycache__/
+*.pyc
+/figs/
+**/cache/
+*.png
