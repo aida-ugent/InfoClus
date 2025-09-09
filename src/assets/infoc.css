@@ -1,0 +1,26 @@
+#infoc_bar {
+    color: dodgerblue;
+    font-size: 16px;
+    font-weight: bold;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    text-align: left;
+    padding: 0 2rem 0 2rem;
+
+    background-color: white;
+    height: 4rem;
+
+    display: flex;
+    align-items: center;
+}
+
+#infoclus_container {
+    background-color: lightgray;  /* 灰色背景 */
+    padding: 2rem;              /* 内边距，保证内容不贴边 */
+    margin-top: 0;           /* 可根据需要调整顶部间距 */
+    min-width: 100vw;
+    min-height: 100vh;          /* 可选：让容器至少占满整个屏幕高度 */
+}
+
+#layout{
+    display: flex;
+}

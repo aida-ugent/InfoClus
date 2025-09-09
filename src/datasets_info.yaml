@@ -1,0 +1,10 @@
+data_path:
+  - path: data
+
+datasets:
+  - 'german_socio_eco'
+  - 'cytometry_2500'
+  - 'mushroom_3000'
+
+embeddings:
+  method: ["tsne", "pca"]
