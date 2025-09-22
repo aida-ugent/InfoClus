@@ -10,7 +10,7 @@ from layout import config_layout
 from callbacks import register_callbacks
 from dash_utils import build_infoclus, serialize_obj
 from config import PROJECT_ROOT
-from src.dash_utils import serialize_obj
+from dash_utils import serialize_obj
 
 data_name = 'german_socio_eco'
 df_data = pd.read_csv(os.path.join(PROJECT_ROOT, 'data', data_name, f'{data_name}.csv'))
