@@ -8,6 +8,9 @@ from config import PROJECT_ROOT, DATA_FOLDER
 def build_infoclus(dataset_name: str='german_socio_eco', emb_name='tsne', linkage='single', modify=True):
 
     cache_folder = os.path.join(PROJECT_ROOT, 'data', dataset_name, 'cache')
+    if not os.path.exists(cache_folder):
+        os.mkdir(cache_folder)
+    
     file_path = os.path.join(cache_folder, emb_name +'_'+ linkage + '_' + 'modify_' + str(modify))
 
     if os.path.exists(file_path):
