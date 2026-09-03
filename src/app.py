@@ -63,8 +63,5 @@ app.layout = dash.html.Div(
 register_callbacks(app)
 
 if __name__ == "__main__":
-    app.run(
-        debug=True, port=8051, dev_tools_hot_reload=True, use_reloader=True
-    )
-
+    app.run(debug=False, port=8051)
 
