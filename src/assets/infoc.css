@@ -1,0 +1,68 @@
+/* Prevent layout shift (shaking) when tooltips appear – reserve scrollbar space */
+html {
+    scrollbar-gutter: stable;
+}
+
+#infoc_bar {
+    color: dodgerblue;
+    font-size: 3rem;
+    font-weight: bold;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    text-align: left;
+    padding: 0 2rem 0 2rem;
+
+    background-color: white;
+    height: 4rem;
+
+    display: flex;
+    align-items: center;
+}
+
+#infoclus_container {
+    background-color: lightgray;
+    /* 灰色背景 */
+    padding: 2rem;
+    /* 内边距，保证内容不贴边 */
+    margin-top: 0;
+    /* 可根据需要调整顶部间距 */
+    min-width: 100vw;
+    min-height: 100vh;
+    /* 可选：让容器至少占满整个屏幕高度 */
+}
+
+#layout {
+    display: flex;
+}
+
+/* Shared column card: same border and height for left, middle, right columns */
+.infoc-column-card {
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e9ecef;
+    height: 100%;
+}
+
+/* Hide horizontal scrollbar for KDE area in middle column (scroll still works) */
+.kde-scroll-hide-horizontal {
+    scrollbar-width: none;
+    /* Firefox */
+    -ms-overflow-style: none;
+    /* IE/Edge */
+}
+
+.kde-scroll-hide-horizontal::-webkit-scrollbar:horizontal {
+    height: 0;
+    display: none;
+}
+
+/* Font size for the 3 scatter controls (clustering menu, embedding menu, Point style button) */
+.scatter-control-btn,
+.scatter-control-btn.btn,
+.scatter-control-btn .btn {
+    font-size: 1.5rem;
+}
+
+.tooltip-inner {
+    font-size: 1.5rem;
+    /* adjust as needed */
+}
