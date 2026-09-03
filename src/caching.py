@@ -12,5 +12,6 @@ def from_cache(path_to_cache_file):
 
 
 def to_cache(path_to_cache_file, data):
+    os.makedirs(os.path.dirname(path_to_cache_file), exist_ok=True)
     with open(path_to_cache_file, 'wb') as f:
         pickle.dump(data, f, pickle.HIGHEST_PROTOCOL)
